@@ -58,6 +58,8 @@ function App(){
   const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
   const [session,setSession]=useState(null);
   const [scenarioMessage,setScenarioMessage]=useState("");
+  const [activeScenarioId,setActiveScenarioId]=useState(null);
+  const [compareIds,setCompareIds]=useState([]);
 
   useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
   useEffect(()=>{
@@ -99,6 +101,7 @@ function App(){
         cloud:true
       }));
       setSavedScenarios(cloud);
+      setCompareIds(cloud.slice(0,Math.min(4,cloud.length)).map(x=>x.id));
       setScenarioMessage(cloud.length?"Cloud scenarios loaded.":"No cloud scenarios saved yet.");
     };
     loadCloudScenarios();
@@ -287,15 +290,67 @@ function App(){
     setSavedScenarios(prev=>[{...localScenario,id:row.id,propertyId:property.id,cloud:true},...prev].slice(0,12));
     setScenarioMessage("Saved to cloud.");
   };
+  const updateScenario=async()=>{
+    if(!session?.user?.id||!activeScenarioId){setScenarioMessage("Load a cloud scenario first, then click Update.");return;}
+    const sc=savedScenarios.find(x=>x.id===activeScenarioId);
+    if(!sc?.cloud){setScenarioMessage("Only cloud scenarios can be updated.");return;}
+    setScenarioMessage("Updating cloud scenario...");
+    const {error:propertyError}=await supabase.from("housing_properties").update({
+      property_name:scenarioName||"Scenario",address:propertyAddress.trim()
+    }).eq("id",sc.propertyId).eq("user_id",session.user.id);
+    if(propertyError){setScenarioMessage("Update failed: "+propertyError.message);return;}
+    const patch={
+      scenario_name:scenarioName||"Scenario",home_price:price,down_payment_pct:downPct,interest_rate:rate,loan_term_years:years,
+      property_tax_annual:taxAnnual,homeowners_insurance_annual:insuranceAnnual,hoa_monthly:hoa,pmi_rate_annual:pmiRate,
+      flood_wind_insurance_annual:floodAnnual,maintenance_pct_annual:maintenancePct,extra_monthly_principal:extraMonthly,
+      lump_sum_principal:lumpSum,closing_cost_pct:closingPct,seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,
+      appraisal_fee:appraisalFee,inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
+      prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,estimated_monthly_cost:calc.totalMonthly,
+      estimated_cash_to_close:calc.cashToClose,estimated_total_interest:calc.base.totalInterest
+    };
+    const {error}=await supabase.from("housing_scenarios").update(patch).eq("id",sc.id).eq("user_id",session.user.id);
+    if(error){setScenarioMessage("Update failed: "+error.message);return;}
+    setSavedScenarios(prev=>prev.map(x=>x.id===sc.id?{...x,name:scenarioName||"Scenario",address:propertyAddress.trim(),price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,floodAnnual,maintenancePct,extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest}:x));
+    setScenarioMessage("Cloud scenario updated.");
+  };
+
+  const duplicateScenario=async sc=>{
+    if(!sc?.cloud||!session?.user?.id){setScenarioMessage("Load a cloud scenario first.");return;}
+    setScenarioName(sc.name+" Copy"); setPropertyAddress(sc.address||""); loadScenario(sc);
+    const userId=session.user.id;
+    const {data:property,error:pe}=await supabase.from("housing_properties").insert({user_id:userId,property_name:sc.name+" Copy",address:sc.address||""}).select("id").single();
+    if(pe){setScenarioMessage("Duplicate failed: "+pe.message);return;}
+    const {data:source,error:se}=await supabase.from("housing_scenarios").select("*").eq("id",sc.id).eq("user_id",userId).single();
+    if(se){await supabase.from("housing_properties").delete().eq("id",property.id);setScenarioMessage("Duplicate failed: "+se.message);return;}
+    const {id,created_at,updated_at,property_id,...copy}=source;
+    const {data:newRow,error}=await supabase.from("housing_scenarios").insert({...copy,property_id:property.id,scenario_name:sc.name+" Copy"}).select("id").single();
+    if(error){await supabase.from("housing_properties").delete().eq("id",property.id);setScenarioMessage("Duplicate failed: "+error.message);return;}
+    const clone={...sc,id:newRow.id,propertyId:property.id,name:sc.name+" Copy"};
+    setSavedScenarios(prev=>[clone,...prev]);
+    setCompareIds(prev=>prev.length<4?[newRow.id,...prev]:prev);
+    setScenarioMessage("Scenario duplicated.");
+  };
+
+  const toggleCompare=id=>{
+    setCompareIds(prev=>{
+      if(prev.includes(id)) return prev.filter(x=>x!==id);
+      if(prev.length>=4){setScenarioMessage("You can compare up to 4 houses at a time.");return prev;}
+      return [...prev,id];
+    });
+  };
+
   const deleteScenario=async sc=>{
     if(sc.cloud&&supabase&&session?.user?.id){
       const {error}=await supabase.from("housing_properties").delete().eq("id",sc.propertyId).eq("user_id",session.user.id);
       if(error){setScenarioMessage("Delete failed: "+error.message);return;}
     }
     setSavedScenarios(prev=>prev.filter(x=>x.id!==sc.id));
+    setCompareIds(prev=>prev.filter(id=>id!==sc.id));
+    if(activeScenarioId===sc.id)setActiveScenarioId(null);
     setScenarioMessage(sc.cloud?"Cloud scenario deleted.":"Local scenario deleted.");
   };
   const loadScenario=sc=>{
+    setActiveScenarioId(sc.id);
     setScenarioName(sc.name);setPropertyAddress(sc.address||"");setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
     setTaxAnnual(sc.taxAnnual);setInsuranceAnnual(sc.insuranceAnnual);setHoa(sc.hoa);setPmiRate(sc.pmiRate);
     setFloodAnnual(sc.floodAnnual);setMaintenancePct(sc.maintenancePct);
@@ -328,22 +383,20 @@ function App(){
       <AuthPanel session={session} onSessionChange={setSession}/>
     </section>
     <section className="scenario-bar card">
-      <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name" placeholder="Scenario name"/><input className="address-input" value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} aria-label="Property address" placeholder="House address"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
-      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><div className="saved-scenario" key={sc.id}><button onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo{sc.cloud?" · Cloud":""}</small></button><button className="scenario-delete" onClick={()=>deleteScenario(sc)} title={"Delete "+sc.name} aria-label={"Delete "+sc.name}>×</button></div>):<span>No saved scenarios yet</span>}</div>
+      <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name" placeholder="Scenario name"/><input className="address-input" value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} aria-label="Property address" placeholder="House address"/><button onClick={saveScenario}>Save new</button><button className="secondary" onClick={updateScenario} disabled={!activeScenarioId}>Update loaded</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
+      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><div className={"saved-scenario "+(activeScenarioId===sc.id?"loaded":"")} key={sc.id}><button onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo{sc.cloud?" · Cloud":""}</small></button><div className="scenario-actions"><button className="mini-action" onClick={()=>duplicateScenario(sc)} title="Duplicate">Copy</button><button className="scenario-delete" onClick={()=>deleteScenario(sc)} title={"Delete "+sc.name} aria-label={"Delete "+sc.name}>×</button></div></div>):<span>No saved scenarios yet</span>}</div>
       {scenarioMessage&&<div className="scenario-message">{scenarioMessage}</div>}
     </section>
 
     {savedScenarios.length>1&&<section className="card panel compact-panel property-compare section-blue">
-      <div className="section-title"><div><span>HOUSE-TO-HOUSE COMPARISON</span><h2>Saved properties</h2></div><small>Click a saved scenario above to load it</small></div>
-      <div className="property-compare-grid">{savedScenarios.map(sc=><div className="property-compare-card" key={sc.id}>
+      <div className="section-title"><div><span>HOUSE-TO-HOUSE COMPARISON</span><h2>Select 2–4 saved properties</h2></div><small>{compareIds.length}/4 selected</small></div>
+      <div className="compare-picker">{savedScenarios.map(sc=><label key={sc.id}><input type="checkbox" checked={compareIds.includes(sc.id)} onChange={()=>toggleCompare(sc.id)}/><span>{sc.name}</span></label>)}</div>
+      {compareIds.length>=2?<div className="property-compare-grid">{savedScenarios.filter(sc=>compareIds.includes(sc.id)).map(sc=><div className="property-compare-card" key={sc.id}>
         <strong>{sc.name}</strong><span className="property-address">{sc.address||"Address not entered"}</span>
-        <div><span>Price</span><b>{money(sc.price)}</b></div>
-        <div><span>Down</span><b>{sc.downPct}%</b></div>
-        <div><span>Rate</span><b>{sc.rate}%</b></div>
-        <div><span>Monthly</span><b>{money(sc.monthly)}</b></div>
-        <div><span>Cash to close</span><b>{money(sc.cashToClose)}</b></div>
-        <div><span>Total interest</span><b>{money(sc.interest)}</b></div>
-      </div>)}</div>
+        <div><span>Price</span><b>{money(sc.price)}</b></div><div><span>Down</span><b>{sc.downPct}%</b></div>
+        <div><span>Rate</span><b>{sc.rate}%</b></div><div><span>Monthly</span><b>{money(sc.monthly)}</b></div>
+        <div><span>Cash to close</span><b>{money(sc.cashToClose)}</b></div><div><span>Total interest</span><b>{money(sc.interest)}</b></div>
+      </div>)}</div>:<div className="compare-hint">Select at least 2 houses to compare.</div>}
     </section>}
 
     <section className="metrics">
