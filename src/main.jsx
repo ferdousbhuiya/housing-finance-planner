@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
 
@@ -97,7 +97,16 @@ function App(){
     for(let amount=0;amount<=maxDown;amount+=step){
       const next=Math.min(amount+step,maxDown);
       if(next<=amount) break;
-      rows.push({down:next,savings:Math.max(0,Math.round(monthlyForDown(amount)-monthlyForDown(next)))});
+      const nextPayment=monthlyForDown(next);
+      const currentPct=price>0 ? amount/price*100 : 0;
+      const nextPct=price>0 ? next/price*100 : 0;
+      rows.push({
+        down:next,
+        savings:Math.max(0,Math.round(monthlyForDown(amount)-nextPayment)),
+        monthlyPayment:Math.round(nextPayment),
+        crossesPmi:currentPct<20 && nextPct>=20,
+        downPct:nextPct
+      });
     }
     return rows;
   },[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
@@ -133,7 +142,7 @@ function App(){
     </section>
 
     <section className="grid two">
-      <div className="card panel">
+      <div className="card panel section-inputs">
         <div className="section-title"><div><span>PURCHASE ASSUMPTIONS</span><h2>Build your scenario</h2></div></div>
         <div className="form-grid">
           <Field label="Home price" value={price} onChange={setPrice} prefix="$" step={5000}/>
@@ -154,7 +163,7 @@ function App(){
         <div className="slider-wrap"><div><span>Down payment explorer</span><strong>{downPct}% · {money(calc.down)}</strong></div><input className="slider" type="range" min="3" max="40" value={downPct} onChange={e=>setDownPct(Number(e.target.value))}/></div>
       </div>
 
-      <div className="card panel">
+      <div className="card panel section-cost">
         <div className="section-title"><div><span>MONTHLY COST</span><h2>Where the payment goes</h2></div><strong>{money(calc.totalMonthly)}/mo</strong></div>
         <ResponsiveContainer width="100%" height={230}><BarChart data={breakdown} layout="vertical" margin={{left:18,right:24}}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tickFormatter={v=>'$'+v}/><YAxis type="category" dataKey="name" width={126}/><Tooltip formatter={v=>money(v)}/><Bar dataKey="value" radius={[0,8,8,0]} fill="#2c7a7b"/>
@@ -164,7 +173,7 @@ function App(){
     </section>
 
     <section className="grid two chart-grid">
-      <div className="card panel compact-panel">
+      <div className="card panel compact-panel section-blue">
         <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>Monthly payment vs. down payment %</h2></div></div>
         <ResponsiveContainer width="100%" height={205}>
           <LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}>
@@ -176,7 +185,7 @@ function App(){
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="card panel compact-panel">
+      <div className="card panel compact-panel section-purple">
         <div className="section-title"><div><span>CASH DOWN IMPACT</span><h2>Monthly payment vs. down payment $</h2></div></div>
         <ResponsiveContainer width="100%" height={205}>
           <LineChart data={downDollarData} margin={{top:5,right:16,left:4,bottom:0}}>
@@ -190,7 +199,7 @@ function App(){
       </div>
     </section>
 
-    <section className="card panel compact-panel incremental-card">
+    <section className="card panel compact-panel incremental-card section-savings">
       <div className="section-title">
         <div><span>EXTRA DOWN PAYMENT VALUE</span><h2>Monthly payment reduction for each additional $5,000 down</h2></div>
         <small>Includes the PMI change when a step crosses 20% down</small>
@@ -200,14 +209,41 @@ function App(){
           <CartesianGrid strokeDasharray="3 3" vertical={false}/>
           <XAxis dataKey="down" tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
           <YAxis tickFormatter={v => "$"+v}/>
-          <Tooltip labelFormatter={v => "Total down payment: "+money(v)} formatter={v => [money(v),"Monthly payment reduction"]}/>
-          <Bar dataKey="savings" name="Monthly payment reduction" fill="#0f766e" radius={[5,5,0,0]}/>
+          <Tooltip
+            labelFormatter={(v,payload) => {
+              const row=payload?.[0]?.payload;
+              return row ? "Down payment: "+money(v)+" ("+row.downPct.toFixed(1)+"%)" : "Down payment: "+money(v);
+            }}
+            formatter={(v,name,item) => {
+              const row=item?.payload;
+              if(name==="Monthly payment reduction") return [money(v)+"/mo","Reduction from prior $5,000 step"];
+              return [money(v)+"/mo",name];
+            }}
+            content={({active,payload,label})=>{
+              if(!active||!payload?.length)return null;
+              const row=payload[0].payload;
+              return <div className="custom-tooltip">
+                <strong>Down payment: {money(label)} ({row.downPct.toFixed(1)}%)</strong>
+                <span>Monthly payment: <b>{money(row.monthlyPayment)}/mo</b></span>
+                <span>Reduction from prior $5,000: <b>{money(row.savings)}/mo</b></span>
+                {row.crossesPmi&&<em>20% reached · estimated PMI removed</em>}
+              </div>
+            }}
+          />
+          <Bar dataKey="savings" name="Monthly payment reduction" radius={[5,5,0,0]}>
+            {incrementalDownData.map((row,index)=><Cell key={index} fill={row.crossesPmi?"#e11d48":row.downPct<20?"#0f766e":"#2563eb"}/>)}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
+      <div className="threshold-legend">
+        <span><i className="dot below"></i>Below 20% down</span>
+        <span><i className="dot threshold"></i>20% PMI-removal step</span>
+        <span><i className="dot above"></i>20%+ down</span>
+      </div>
     </section>
 
     <section className="grid finance-grid">
-      <div className="card panel compact-panel">
+      <div className="card panel compact-panel section-green">
         <div className="section-title"><div><span>EXTRA PRINCIPAL</span><h2>Payoff accelerator</h2></div></div>
         <div className="form-grid">
           <Field label="Extra every month" value={extraMonthly} onChange={setExtraMonthly} prefix="$" step={50}/>
@@ -219,7 +255,7 @@ function App(){
           <div><span>New payoff</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong></div>
         </div>
       </div>
-      <div className="card panel compact-panel">
+      <div className="card panel compact-panel section-gold">
         <div className="section-title"><div><span>CASH TO CLOSE</span><h2>Purchase costs</h2></div><strong>{money(calc.cashToClose)}</strong></div>
         <div className="form-grid">
           <Field label="Closing costs estimate" value={closingPct} onChange={setClosingPct} suffix="%" step={0.25}/>
@@ -227,7 +263,7 @@ function App(){
         </div>
         <div className="mini-breakdown"><span>Down payment <b>{money(calc.down)}</b></span><span>Closing costs <b>{money(calc.closingCosts)}</b></span><span>Credits <b>− {money(sellerCredit)}</b></span></div>
       </div>
-      <div className="card panel compact-panel balance-card">
+      <div className="card panel compact-panel balance-card section-slate">
         <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. accelerated</h2></div></div>
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={yearly}>
@@ -243,7 +279,7 @@ function App(){
       </div>
     </section>
 
-    <section className="card panel compact-panel amort-card">
+    <section className="card panel compact-panel amort-card section-amort">
       <div className="section-title"><div><span>AMORTIZATION SNAPSHOT</span><h2>How principal takes over from interest</h2></div><small>Selected yearly checkpoints</small></div>
       <div className="table-wrap"><table><thead><tr><th>Year</th><th>Annual principal</th><th>Annual interest</th><th>Ending balance</th></tr></thead><tbody>
         {[1,5,10,15,20,25,years].filter((v,i,a)=>v<=years&&a.indexOf(v)===i).map(y=>{
