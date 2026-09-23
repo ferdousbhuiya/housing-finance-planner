@@ -303,3 +303,19 @@ th,td{padding:5px 8px}
   .ownership-cost-details{grid-template-columns:1fr}
   .ownership-cost-details .ownership-total{grid-column:auto}
 }
+
+.sell-equity-card{margin-top:12px}
+.sell-equity-controls{display:grid;grid-template-columns:repeat(2,minmax(0,220px));gap:10px;margin:8px 0 12px}
+.sell-equity-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.sell-year-card{padding:10px;border:1px solid #dbe4ee;border-radius:10px;background:#fff}
+.sell-year-card>div:not(.sell-year){display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #eef2f7;font-size:.69rem}
+.sell-year-card span{color:#64748b}
+.sell-year-card b{color:#0f172a;text-align:right}
+.sell-year{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.sell-year span{font-size:.61rem;font-weight:800;letter-spacing:.08em;color:#d97706}
+.sell-year strong{font-size:.82rem;color:#0f766e}
+.sell-year-card .sell-proceeds{margin-top:4px;padding:7px!important;border:1px solid #a7f3d0!important;border-radius:7px;background:#ecfdf5}
+.sell-year-card .sell-proceeds span,.sell-year-card .sell-proceeds b{color:#166534;font-weight:800}
+.sell-note{display:block;margin-top:8px;color:#64748b;font-size:.65rem}
+@media(max-width:1000px){.sell-equity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.sell-equity-controls,.sell-equity-grid{grid-template-columns:1fr}}
