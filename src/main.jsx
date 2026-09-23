@@ -195,7 +195,19 @@ function App(){
       </div>
       <div className="card panel compact-panel balance-card">
         <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. accelerated</h2></div></div>
-        <ResponsiveContainer width="100%" height={220}><AreaChart data={yearly}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year"/><YAxis tickFormatter={v=>'
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={yearly}>
+            <CartesianGrid strokeDasharray="3 3"/>
+            <XAxis dataKey="year"/>
+            <YAxis tickFormatter={v => `$${Math.round(v/1000)}k`}/>
+            <Tooltip formatter={v => money(v)}/>
+            <Legend/>
+            <Area type="monotone" dataKey="normal" name="Scheduled" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.38}/>
+            <Area type="monotone" dataKey="extra" name="Extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.34}/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
 
     <section className="card panel compact-panel amort-card">
       <div className="section-title"><div><span>AMORTIZATION SNAPSHOT</span><h2>How principal takes over from interest</h2></div><small>Selected yearly checkpoints</small></div>
@@ -209,14 +221,6 @@ function App(){
     </section>
 
     <section className="notice"><strong>Planning estimate</strong><span>Planning estimates are editable. PMI, taxes, insurance, maintenance and closing costs vary by property, borrower and lender. Saved scenarios, authentication and lender-product rules will be connected in the persistence phase.</span></section>
-  </main>
-}
-createRoot(document.getElementById('root')).render(<App/>);
-+Math.round(v/1000)+'k'}/><Tooltip formatter={v=>money(v)}/><Legend/><Area type="monotone" dataKey="normal" name="Scheduled" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.38}/><Area type="monotone" dataKey="extra" name="Extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.34}/></AreaChart></ResponsiveContainer>
-      </div>
-    </section>
-
-    <section className="notice"><strong>Planning estimate</strong><span>Next phases add closing costs, points, credits, loan products, PMI rules, lump-sum payments, scenario saving, Supabase accounts and Florida-specific ownership costs.</span></section>
   </main>
 }
 createRoot(document.getElementById('root')).render(<App/>);
