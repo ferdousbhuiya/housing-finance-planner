@@ -182,3 +182,16 @@ th,td{padding:5px 8px}
   .closing-fields{grid-template-columns:1fr}
   .closing-summary{grid-template-columns:1fr}
 }
+
+/* Property identity and house-to-house comparison */
+.scenario-save .address-input{width:260px}
+.property-compare{margin:6px 0;padding:9px}
+.property-compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px}
+.property-compare-card{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:9px;border:1px solid #cbd9e8;border-radius:10px;background:rgba(255,255,255,.78)}
+.property-compare-card>strong,.property-address{grid-column:1/-1}
+.property-compare-card>strong{font-size:.86rem;color:#173b63}
+.property-address{font-size:.69rem;color:#607286;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+.property-compare-card>div{display:flex;justify-content:space-between;gap:6px;font-size:.68rem}
+.property-compare-card>div span{color:#64748b}
+.property-compare-card>div b{color:#10243e}
+@media(max-width:760px){.scenario-save .address-input{width:100%}.property-compare-grid{grid-template-columns:1fr}}
