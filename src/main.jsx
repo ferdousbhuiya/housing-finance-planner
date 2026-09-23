@@ -66,6 +66,13 @@ function App(){
     return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+hoa+scenarioPmi)};
   }),[price,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate]);
 
+  const downDollarData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
+    const amount=price*pct/100;
+    const loan=price-amount;
+    const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
+    return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+hoa+scenarioPmi)};
+  }),[price,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate]);
+
   const yearly=useMemo(()=>{
     const max=Math.max(calc.base.rows.length,calc.extra.rows.length),out=[];
     for(let i=12;i<=max;i+=12)out.push({year:i/12,normal:Math.round(calc.base.rows[Math.min(i-1,calc.base.rows.length-1)]?.balance||0),extra:Math.round(calc.extra.rows[Math.min(i-1,calc.extra.rows.length-1)]?.balance||0)});
@@ -83,9 +90,9 @@ function App(){
   const interestSaved=Math.max(0,calc.base.totalInterest-calc.extra.totalInterest);
 
   return <main>
-    <header className="hero">
-      <div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>See the effect of every mortgage decision before you make it.</h1><p>Explore down payments, true monthly ownership cost, amortization and extra principal payments with live visual comparisons.</p></div>
-      <div className="hero-badge"><Home size={24}/> Mortgage Lab</div>
+    <header className="hero compact-hero">
+      <div className="brand-row"><div className="brand-icon"><Home size={22}/></div><div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>Mortgage Decision Dashboard</h1><p>Change an assumption and see the financial effect instantly.</p></div></div>
+      <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
     </header>
 
     <section className="metrics">
@@ -123,9 +130,81 @@ function App(){
       </div>
     </section>
 
-    <section className="card panel">
-      <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>More down payment, lower monthly cost</h2></div><div className="callout">Compare cash now with monthly cost later</div></div>
-      <ResponsiveContainer width="100%" height={330}><LineChart data={downData}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="pct"/><YAxis tickFormatter={v=>'$'+v}/><Tooltip formatter={v=>money(v)}/><Line type="monotone" dataKey="payment" stroke="#2563eb" strokeWidth={4} dot={{r:5}}/></LineChart></ResponsiveContainer>
+    <section className="grid two chart-grid">
+      <div className="card panel compact-panel">
+        <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>Monthly payment vs. down payment %</h2></div></div>
+        <ResponsiveContainer width="100%" height={245}><LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="pct"/><YAxis tickFormatter={v=>'
+
+    <section className="grid two">
+      <div className="card panel">
+        <div className="section-title"><div><span>EXTRA PRINCIPAL</span><h2>How much sooner can the loan end?</h2></div></div>
+        <Field label="Extra payment every month" value={extraMonthly} onChange={setExtraMonthly} prefix="$" step={50}/>
+        <div className="impact-grid">
+          <div><span>Time saved</span><strong>{Math.floor(monthsSaved/12)}y {monthsSaved%12}m</strong></div>
+          <div><span>Interest saved</span><strong>{money(interestSaved)}</strong></div>
+          <div><span>New payoff length</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong></div>
+        </div>
+      </div>
+      <div className="card panel">
+        <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. extra-payment path</h2></div></div>
+        <ResponsiveContainer width="100%" height={310}><AreaChart data={yearly}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year"/><YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'}/><Tooltip formatter={v=>money(v)}/><Legend/><Area type="monotone" dataKey="normal" name="Scheduled payment" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.48}/><Area type="monotone" dataKey="extra" name="With extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.42}/></AreaChart></ResponsiveContainer>
+      </div>
+    </section>
+
+    <section className="notice"><strong>Planning estimate</strong><span>Next phases add closing costs, points, credits, loan products, PMI rules, lump-sum payments, scenario saving, Supabase accounts and Florida-specific ownership costs.</span></section>
+  </main>
+}
+createRoot(document.getElementById('root')).render(<App/>);
++v}/><Tooltip formatter={v=>money(v)}/><Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#2563eb" strokeWidth={3} dot={{r:4}}/></LineChart></ResponsiveContainer>
+      </div>
+      <div className="card panel compact-panel">
+        <div className="section-title"><div><span>CASH DOWN IMPACT</span><h2>Monthly payment vs. down payment $</h2></div></div>
+        <ResponsiveContainer width="100%" height={245}><LineChart data={downDollarData} margin={{top:5,right:16,left:4,bottom:0}}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="amount" tickFormatter={v=>'
+
+    <section className="grid two">
+      <div className="card panel">
+        <div className="section-title"><div><span>EXTRA PRINCIPAL</span><h2>How much sooner can the loan end?</h2></div></div>
+        <Field label="Extra payment every month" value={extraMonthly} onChange={setExtraMonthly} prefix="$" step={50}/>
+        <div className="impact-grid">
+          <div><span>Time saved</span><strong>{Math.floor(monthsSaved/12)}y {monthsSaved%12}m</strong></div>
+          <div><span>Interest saved</span><strong>{money(interestSaved)}</strong></div>
+          <div><span>New payoff length</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong></div>
+        </div>
+      </div>
+      <div className="card panel">
+        <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. extra-payment path</h2></div></div>
+        <ResponsiveContainer width="100%" height={310}><AreaChart data={yearly}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year"/><YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'}/><Tooltip formatter={v=>money(v)}/><Legend/><Area type="monotone" dataKey="normal" name="Scheduled payment" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.48}/><Area type="monotone" dataKey="extra" name="With extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.42}/></AreaChart></ResponsiveContainer>
+      </div>
+    </section>
+
+    <section className="notice"><strong>Planning estimate</strong><span>Next phases add closing costs, points, credits, loan products, PMI rules, lump-sum payments, scenario saving, Supabase accounts and Florida-specific ownership costs.</span></section>
+  </main>
+}
+createRoot(document.getElementById('root')).render(<App/>);
++Math.round(v/1000)+'k'}/><YAxis tickFormatter={v=>'
+
+    <section className="grid two">
+      <div className="card panel">
+        <div className="section-title"><div><span>EXTRA PRINCIPAL</span><h2>How much sooner can the loan end?</h2></div></div>
+        <Field label="Extra payment every month" value={extraMonthly} onChange={setExtraMonthly} prefix="$" step={50}/>
+        <div className="impact-grid">
+          <div><span>Time saved</span><strong>{Math.floor(monthsSaved/12)}y {monthsSaved%12}m</strong></div>
+          <div><span>Interest saved</span><strong>{money(interestSaved)}</strong></div>
+          <div><span>New payoff length</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong></div>
+        </div>
+      </div>
+      <div className="card panel">
+        <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. extra-payment path</h2></div></div>
+        <ResponsiveContainer width="100%" height={310}><AreaChart data={yearly}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year"/><YAxis tickFormatter={v=>'$'+Math.round(v/1000)+'k'}/><Tooltip formatter={v=>money(v)}/><Legend/><Area type="monotone" dataKey="normal" name="Scheduled payment" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.48}/><Area type="monotone" dataKey="extra" name="With extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.42}/></AreaChart></ResponsiveContainer>
+      </div>
+    </section>
+
+    <section className="notice"><strong>Planning estimate</strong><span>Next phases add closing costs, points, credits, loan products, PMI rules, lump-sum payments, scenario saving, Supabase accounts and Florida-specific ownership costs.</span></section>
+  </main>
+}
+createRoot(document.getElementById('root')).render(<App/>);
++v}/><Tooltip labelFormatter={v=>'Down payment: '+money(v)} formatter={v=>money(v)}/><Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#7c3aed" strokeWidth={3} dot={{r:4}}/></LineChart></ResponsiveContainer>
+      </div>
     </section>
 
     <section className="grid two">
