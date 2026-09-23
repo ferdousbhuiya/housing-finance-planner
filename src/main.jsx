@@ -58,13 +58,12 @@ function App(){
   const [initialEscrow,setInitialEscrow]=useState(2500);
   const [scenarioName,setScenarioName]=useState("Scenario 1");
   const [propertyAddress,setPropertyAddress]=useState("");
-  const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
+  const [savedScenarios,setSavedScenarios]=useState([]);
   const [session,setSession]=useState(null);
   const [scenarioMessage,setScenarioMessage]=useState("");
   const [activeScenarioId,setActiveScenarioId]=useState(null);
   const [compareIds,setCompareIds]=useState([]);
 
-  useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
   useEffect(()=>{
     if(!supabase) return;
     supabase.auth.getSession().then(({data})=>setSession(data.session));
@@ -73,6 +72,8 @@ function App(){
   useEffect(()=>{
     if(!session?.user?.id){
       setSavedScenarios([]);
+      setActiveScenarioId(null);
+      setCompareIds([]);
       setScenarioMessage("");
       return;
     }
@@ -325,19 +326,20 @@ function App(){
 
   const duplicateScenario=async sc=>{
     if(!sc?.cloud||!session?.user?.id){setScenarioMessage("Load a cloud scenario first.");return;}
-    setScenarioName(sc.name+" Copy"); setPropertyAddress(sc.address||""); loadScenario(sc);
+    const copyName=copyName;
     const userId=session.user.id;
-    const {data:property,error:pe}=await supabase.from("housing_properties").insert({user_id:userId,property_name:sc.name+" Copy",address:sc.address||""}).select("id").single();
+    const {data:property,error:pe}=await supabase.from("housing_properties").insert({user_id:userId,property_name:copyName,address:sc.address||""}).select("id").single();
     if(pe){setScenarioMessage("Duplicate failed: "+pe.message);return;}
     const {data:source,error:se}=await supabase.from("housing_scenarios").select("*").eq("id",sc.id).eq("user_id",userId).single();
     if(se){await supabase.from("housing_properties").delete().eq("id",property.id);setScenarioMessage("Duplicate failed: "+se.message);return;}
     const {id,created_at,updated_at,property_id,...copy}=source;
-    const {data:newRow,error}=await supabase.from("housing_scenarios").insert({...copy,property_id:property.id,scenario_name:sc.name+" Copy"}).select("id").single();
+    const {data:newRow,error}=await supabase.from("housing_scenarios").insert({...copy,property_id:property.id,scenario_name:copyName}).select("id").single();
     if(error){await supabase.from("housing_properties").delete().eq("id",property.id);setScenarioMessage("Duplicate failed: "+error.message);return;}
-    const clone={...sc,id:newRow.id,propertyId:property.id,name:sc.name+" Copy"};
+    const clone={...sc,id:newRow.id,propertyId:property.id,name:copyName};
     setSavedScenarios(prev=>[clone,...prev]);
     setCompareIds(prev=>prev.length<4?[newRow.id,...prev]:prev);
-    setScenarioMessage("Scenario duplicated.");
+    loadScenario(clone);
+    setScenarioMessage("Scenario duplicated and loaded for editing.");
   };
 
   const toggleCompare=id=>{
