@@ -4,6 +4,8 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
 import { monthlyPI, amortize } from './mortgageMath.js';
+import { supabase } from './supabase.js';
+import AuthPanel from './AuthPanel.jsx';
 
 const formatter = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const money=n=>formatter.format(Number.isFinite(n)?n:0);
@@ -54,8 +56,13 @@ function App(){
   const [scenarioName,setScenarioName]=useState("Scenario 1");
   const [propertyAddress,setPropertyAddress]=useState("");
   const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
+  const [session,setSession]=useState(null);
 
   useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
+  useEffect(()=>{
+    if(!supabase) return;
+    supabase.auth.getSession().then(({data})=>setSession(data.session));
+  },[]);
 
   const calc=useMemo(()=>{
     const down=price*downPct/100, principal=Math.max(0,price-down);
@@ -232,6 +239,10 @@ function App(){
       <div className="brand-row"><div className="brand-icon"><Home size={22}/></div><div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>Mortgage Decision Dashboard</h1><p>Change an assumption and see the financial effect instantly.</p></div></div>
       <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
     </header>
+    <section className="account-bar card">
+      <div><span className="account-label">CLOUD ACCOUNT</span><small>{session?"Account connected. Cloud property saving is the next step.":"Sign in now; your existing local scenarios remain available."}</small></div>
+      <AuthPanel session={session} onSessionChange={setSession}/>
+    </section>
     <section className="scenario-bar card">
       <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name" placeholder="Scenario name"/><input className="address-input" value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} aria-label="Property address" placeholder="House address"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
       <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><button key={sc.id} onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo</small></button>):<span>No saved scenarios yet</span>}</div>
