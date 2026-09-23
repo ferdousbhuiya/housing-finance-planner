@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContai
 export default function AnalysisPanels({
   Field, principalInterestData, termComparison, rateComparison, pointsPct, setPointsPct,
   pointsRateReduction, setPointsRateReduction, pointsAnalysis, extraCashComparison,
+  extraCashAmount, setExtraCashAmount,
   currentBalance, setCurrentBalance, currentRate, setCurrentRate, remainingYears, setRemainingYears,
   afterPurchase, money
 }){
@@ -30,7 +31,13 @@ export default function AnalysisPanels({
         <div className="mini-breakdown"><span>Upfront points cost <b>{money(pointsAnalysis.pointsCost)}</b></span><span>New rate <b>{pointsAnalysis.reducedRate.toFixed(3)}%</b></span><span>Monthly P&I saving <b>{money(pointsAnalysis.monthlySavings)}</b></span><span>Break-even <b>{pointsAnalysis.breakEven?pointsAnalysis.breakEven+" months":"N/A"}</b></span></div>
       </div>
       <div className="card panel compact-panel section-savings">
-        <div className="section-title"><div><span>EXTRA CASH COMPARISON</span><h2>What does another $10,000 change?</h2></div></div>
+        <div className="section-title"><div><span>EXTRA CASH COMPARISON</span><h2>What does another {money(extraCashAmount)} change?</h2></div></div>
+        <div className="extra-cash-control">
+          <label><span>Extra cash amount</span><select value={extraCashAmount} onChange={e=>setExtraCashAmount(Number(e.target.value))}>
+            {[5000,10000,15000,20000,25000,30000,40000,50000].map(v=><option key={v} value={v}>{money(v)}</option>)}
+          </select></label>
+          <input type="range" min="5000" max="50000" step="5000" value={extraCashAmount} onChange={e=>setExtraCashAmount(Number(e.target.value))}/>
+        </div>
         <div className="compare-cards two-up"><div><strong>Use at purchase</strong><span>{money(extraCashComparison.downMonthlySavings)}/mo lower housing payment</span><small>Includes estimated PMI effect</small></div><div><strong>Pay principal after purchase</strong><span>{money(extraCashComparison.afterInterestSavings)} interest saved</span><small>{Math.floor(extraCashComparison.afterMonthsSaved/12)}y {extraCashComparison.afterMonthsSaved%12}m sooner</small></div></div>
       </div>
       <div className="card panel compact-panel section-slate">
