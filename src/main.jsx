@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
+import { monthlyPI, amortize } from './mortgageMath.js';
 
 const formatter = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const money=n=>formatter.format(Number.isFinite(n)?n:0);
@@ -12,30 +13,6 @@ const monthYearFromNow=months=>{
   return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
 };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number.isFinite(n)?n:min));
-
-function monthlyPI(principal, annualRate, years){
-  const n=years*12, r=annualRate/100/12;
-  if(!principal||principal<=0)return 0;
-  if(!r)return principal/n;
-  return principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
-}
-
-function amortize({principal,annualRate,years,extraMonthly=0,lumpSum=0}){
-  const scheduled=monthlyPI(principal,annualRate,years),r=annualRate/100/12;
-  let balance=principal,month=0,totalInterest=0; const rows=[];
-  while(balance>0.01&&month<years*12+1200){
-    month++;
-    const interest=r?balance*r:0;
-    const scheduledPrincipal=Math.max(0,scheduled-interest);
-    const oneTime=month===1?lumpSum:0;
-    const principalPaid=Math.min(balance,scheduledPrincipal+extraMonthly+oneTime);
-    const payment=interest+principalPaid;
-    balance=Math.max(0,balance-principalPaid);
-    totalInterest+=interest;
-    rows.push({month,payment,principal:principalPaid,interest,balance});
-  }
-  return {scheduled,totalInterest,months:month,rows};
-}
 
 function Field({label,value,onChange,prefix,suffix,step=1,min=0,max=100000000}){
   return <label className="field"><span>{label}</span><div className="input-shell">
