@@ -84,6 +84,24 @@ function App(){
     return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+floodAnnual/12+hoa+scenarioPmi)};
   }),[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
 
+  const incrementalDownData=useMemo(()=>{
+    const step=5000;
+    const maxDown=Math.min(price*0.4, Math.max(step, price-1));
+    const rows=[];
+    const monthlyForDown=(downAmount)=>{
+      const loan=Math.max(0,price-downAmount);
+      const pct=price>0 ? downAmount/price*100 : 0;
+      const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
+      return monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+floodAnnual/12+hoa+scenarioPmi;
+    };
+    for(let amount=0;amount<=maxDown;amount+=step){
+      const next=Math.min(amount+step,maxDown);
+      if(next<=amount) break;
+      rows.push({down:next,savings:Math.max(0,Math.round(monthlyForDown(amount)-monthlyForDown(next)))});
+    }
+    return rows;
+  },[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
+
   const yearly=useMemo(()=>{
     const max=Math.max(calc.base.rows.length,calc.extra.rows.length),out=[];
     for(let i=12;i<=max;i+=12)out.push({year:i/12,normal:Math.round(calc.base.rows[Math.min(i-1,calc.base.rows.length-1)]?.balance||0),extra:Math.round(calc.extra.rows[Math.min(i-1,calc.extra.rows.length-1)]?.balance||0)});
@@ -170,6 +188,22 @@ function App(){
           </LineChart>
         </ResponsiveContainer>
       </div>
+    </section>
+
+    <section className="card panel compact-panel incremental-card">
+      <div className="section-title">
+        <div><span>EXTRA DOWN PAYMENT VALUE</span><h2>Monthly payment reduction for each additional $5,000 down</h2></div>
+        <small>Includes the PMI change when a step crosses 20% down</small>
+      </div>
+      <ResponsiveContainer width="100%" height={190}>
+        <BarChart data={incrementalDownData} margin={{top:4,right:12,left:0,bottom:0}}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+          <XAxis dataKey="down" tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
+          <YAxis tickFormatter={v => "$"+v}/>
+          <Tooltip labelFormatter={v => "Total down payment: "+money(v)} formatter={v => [money(v),"Monthly payment reduction"]}/>
+          <Bar dataKey="savings" name="Monthly payment reduction" fill="#0f766e" radius={[5,5,0,0]}/>
+        </BarChart>
+      </ResponsiveContainer>
     </section>
 
     <section className="grid finance-grid">
