@@ -56,6 +56,8 @@ function App(){
   const [currentBalance,setCurrentBalance]=useState(0);
   const [currentRate,setCurrentRate]=useState(0);
   const [remainingYears,setRemainingYears]=useState(0);
+  const [homeAppreciationPct,setHomeAppreciationPct]=useState(3);
+  const [sellingCostPct,setSellingCostPct]=useState(7);
   const [lenderFee,setLenderFee]=useState(1500);
   const [appraisalFee,setAppraisalFee]=useState(650);
   const [inspectionFee,setInspectionFee]=useState(500);
@@ -398,6 +400,18 @@ function App(){
     {name:'HOA',value:Math.round(hoa)},
     {name:'PMI',value:Math.round(calc.pmi)}
   ];
+  const sellEquityData=useMemo(()=>[3,5,7,10].map(year=>{
+    const month=Math.min(year*12,calc.base.rows.length);
+    const row=calc.base.rows[Math.max(0,month-1)];
+    const balance=row?.balance??0;
+    const principalPaid=Math.max(0,calc.principal-balance);
+    const estimatedValue=price*Math.pow(1+homeAppreciationPct/100,year);
+    const sellingCosts=estimatedValue*(sellingCostPct/100);
+    const equityBeforeSellingCosts=Math.max(0,estimatedValue-balance);
+    const estimatedProceeds=Math.max(0,estimatedValue-sellingCosts-balance);
+    return {year,balance,principalPaid,estimatedValue,sellingCosts,equityBeforeSellingCosts,estimatedProceeds};
+  }),[calc.base.rows,calc.principal,price,homeAppreciationPct,sellingCostPct]);
+
   const monthsSaved=Math.max(0,calc.base.months-calc.extra.months);
   const interestSaved=Math.max(0,calc.base.totalInterest-calc.extra.totalInterest);
 
@@ -562,6 +576,26 @@ function App(){
       recordingFee={recordingFee} setRecordingFee={setRecordingFee} prepaidInterest={prepaidInterest} setPrepaidInterest={setPrepaidInterest}
       initialEscrow={initialEscrow} setInitialEscrow={setInitialEscrow}
     />
+
+    <section className="card panel sell-equity-card">
+      <div className="section-title"><div><span>SELL & EQUITY OUTLOOK</span><h2>What if you sell in 3, 5, 7, or 10 years?</h2></div></div>
+      <div className="sell-equity-controls">
+        <Field label="Home appreciation / year" value={homeAppreciationPct} onChange={setHomeAppreciationPct} suffix="%" step={0.25} min={-20} max={30}/>
+        <Field label="Estimated selling costs" value={sellingCostPct} onChange={setSellingCostPct} suffix="%" step={0.25} min={0} max={20}/>
+      </div>
+      <div className="sell-equity-grid">
+        {sellEquityData.map(x=><div className="sell-year-card" key={x.year}>
+          <div className="sell-year"><span>SELL AFTER</span><strong>{x.year} YEARS</strong></div>
+          <div><span>Estimated home value</span><b>{money(x.estimatedValue)}</b></div>
+          <div><span>Loan balance</span><b>{money(x.balance)}</b></div>
+          <div><span>Principal paid</span><b>{money(x.principalPaid)}</b></div>
+          <div><span>Equity before selling costs</span><b>{money(x.equityBeforeSellingCosts)}</b></div>
+          <div><span>Estimated selling costs</span><b>{money(x.sellingCosts)}</b></div>
+          <div className="sell-proceeds"><span>Estimated proceeds</span><b>{money(x.estimatedProceeds)}</b></div>
+        </div>)}
+      </div>
+      <small className="sell-note">Planning estimate only. Appreciation and selling costs are assumptions; proceeds exclude taxes, repairs, concessions, and other transaction-specific costs.</small>
+    </section>
 
     <AnalysisPanels
       Field={Field} principalInterestData={principalInterestData} termComparison={termComparison}
