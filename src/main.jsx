@@ -57,12 +57,48 @@ function App(){
   const [propertyAddress,setPropertyAddress]=useState("");
   const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
   const [session,setSession]=useState(null);
+  const [scenarioMessage,setScenarioMessage]=useState("");
 
   useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
   useEffect(()=>{
     if(!supabase) return;
     supabase.auth.getSession().then(({data})=>setSession(data.session));
   },[]);
+
+  useEffect(()=>{
+    if(!supabase||!session?.user?.id) return;
+    let active=true;
+    const loadCloudScenarios=async()=>{
+      const {data,error}=await supabase
+        .from("housing_scenarios")
+        .select("*, housing_properties(property_name,address)")
+        .eq("user_id",session.user.id)
+        .order("created_at",{ascending:false});
+      if(!active) return;
+      if(error){setScenarioMessage("Cloud loading failed: "+error.message);return;}
+      const cloud=(data||[]).map(row=>({
+        id:row.id,propertyId:row.property_id,name:row.scenario_name,
+        address:row.housing_properties?.address||"",
+        price:Number(row.home_price),downPct:Number(row.down_payment_pct),
+        rate:Number(row.interest_rate),years:Number(row.loan_term_years),
+        taxAnnual:Number(row.property_tax_annual),insuranceAnnual:Number(row.homeowners_insurance_annual),
+        hoa:Number(row.hoa_monthly),pmiRate:Number(row.pmi_rate_annual),
+        floodAnnual:Number(row.flood_wind_insurance_annual),maintenancePct:Number(row.maintenance_pct_annual),
+        extraMonthly:Number(row.extra_monthly_principal),lumpSum:Number(row.lump_sum_principal),
+        closingPct:Number(row.closing_cost_pct),sellerCredit:Number(row.seller_lender_credits),
+        lenderFee:Number(row.lender_origination_fee),appraisalFee:Number(row.appraisal_fee),
+        inspectionFee:Number(row.inspection_fee),titleFee:Number(row.title_settlement_fee),
+        recordingFee:Number(row.recording_government_fee),prepaidInterest:Number(row.prepaid_interest),
+        initialEscrow:Number(row.initial_escrow),monthly:Number(row.estimated_monthly_cost),
+        cashToClose:Number(row.estimated_cash_to_close),interest:Number(row.estimated_total_interest),
+        cloud:true
+      }));
+      setSavedScenarios(cloud);
+      setScenarioMessage(cloud.length?"Cloud scenarios loaded.":"No cloud scenarios saved yet.");
+    };
+    loadCloudScenarios();
+    return()=>{active=false};
+  },[session?.user?.id]);
 
   const calc=useMemo(()=>{
     const down=price*downPct/100, principal=Math.max(0,price-down);
@@ -209,18 +245,62 @@ function App(){
     ...(sellerCredit>calc.down+calc.effectiveClosing?["Credits exceed estimated cash required."]:[])
   ];
 
-  const saveScenario=()=>{
-    const scenario={
-      id:Date.now(),name:scenarioName||("Scenario "+(savedScenarios.length+1)),address:propertyAddress.trim(),
-      price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,floodAnnual,maintenancePct,
+  const saveScenario=async()=>{
+    const name=scenarioName||("Scenario "+(savedScenarios.length+1));
+    const address=propertyAddress.trim();
+    const localScenario={
+      id:Date.now(),name,address,price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,floodAnnual,maintenancePct,
+      extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,
       monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
     };
-    setSavedScenarios(prev=>[scenario,...prev].slice(0,6));
+    if(!supabase||!session?.user?.id){
+      setSavedScenarios(prev=>[localScenario,...prev].slice(0,6));
+      setScenarioMessage("Saved on this device. Sign in to save across devices.");
+      return;
+    }
+    setScenarioMessage("Saving to cloud...");
+    const userId=session.user.id;
+    const {data:property,error:propertyError}=await supabase.from("housing_properties").insert({
+      user_id:userId,property_name:name,address
+    }).select("id").single();
+    if(propertyError){setScenarioMessage("Cloud save failed: "+propertyError.message);return;}
+    const {data:row,error}=await supabase.from("housing_scenarios").insert({
+      user_id:userId,property_id:property.id,scenario_name:name,
+      home_price:price,down_payment_pct:downPct,interest_rate:rate,loan_term_years:years,
+      property_tax_annual:taxAnnual,homeowners_insurance_annual:insuranceAnnual,hoa_monthly:hoa,
+      pmi_rate_annual:pmiRate,flood_wind_insurance_annual:floodAnnual,maintenance_pct_annual:maintenancePct,
+      extra_monthly_principal:extraMonthly,lump_sum_principal:lumpSum,closing_cost_pct:closingPct,
+      seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,appraisal_fee:appraisalFee,
+      inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
+      prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,
+      estimated_monthly_cost:calc.totalMonthly,estimated_cash_to_close:calc.cashToClose,
+      estimated_total_interest:calc.base.totalInterest
+    }).select("id").single();
+    if(error){
+      await supabase.from("housing_properties").delete().eq("id",property.id);
+      setScenarioMessage("Cloud save failed: "+error.message);return;
+    }
+    setSavedScenarios(prev=>[{...localScenario,id:row.id,propertyId:property.id,cloud:true},...prev].slice(0,12));
+    setScenarioMessage("Saved to cloud.");
+  };
+  const deleteScenario=async sc=>{
+    if(sc.cloud&&supabase&&session?.user?.id){
+      const {error}=await supabase.from("housing_properties").delete().eq("id",sc.propertyId).eq("user_id",session.user.id);
+      if(error){setScenarioMessage("Delete failed: "+error.message);return;}
+    }
+    setSavedScenarios(prev=>prev.filter(x=>x.id!==sc.id));
+    setScenarioMessage(sc.cloud?"Cloud scenario deleted.":"Local scenario deleted.");
   };
   const loadScenario=sc=>{
     setScenarioName(sc.name);setPropertyAddress(sc.address||"");setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
     setTaxAnnual(sc.taxAnnual);setInsuranceAnnual(sc.insuranceAnnual);setHoa(sc.hoa);setPmiRate(sc.pmiRate);
     setFloodAnnual(sc.floodAnnual);setMaintenancePct(sc.maintenancePct);
+    if(sc.extraMonthly!==undefined)setExtraMonthly(sc.extraMonthly);if(sc.lumpSum!==undefined)setLumpSum(sc.lumpSum);
+    if(sc.closingPct!==undefined)setClosingPct(sc.closingPct);if(sc.sellerCredit!==undefined)setSellerCredit(sc.sellerCredit);
+    if(sc.lenderFee!==undefined)setLenderFee(sc.lenderFee);if(sc.appraisalFee!==undefined)setAppraisalFee(sc.appraisalFee);
+    if(sc.inspectionFee!==undefined)setInspectionFee(sc.inspectionFee);if(sc.titleFee!==undefined)setTitleFee(sc.titleFee);
+    if(sc.recordingFee!==undefined)setRecordingFee(sc.recordingFee);if(sc.prepaidInterest!==undefined)setPrepaidInterest(sc.prepaidInterest);
+    if(sc.initialEscrow!==undefined)setInitialEscrow(sc.initialEscrow);
   };
 
   const breakdown=[
@@ -245,7 +325,8 @@ function App(){
     </section>
     <section className="scenario-bar card">
       <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name" placeholder="Scenario name"/><input className="address-input" value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} aria-label="Property address" placeholder="House address"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
-      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><button key={sc.id} onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo</small></button>):<span>No saved scenarios yet</span>}</div>
+      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><div className="saved-scenario" key={sc.id}><button onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo{sc.cloud?" · Cloud":""}</small></button><button className="scenario-delete" onClick={()=>deleteScenario(sc)} title={"Delete "+sc.name} aria-label={"Delete "+sc.name}>×</button></div>):<span>No saved scenarios yet</span>}</div>
+      {scenarioMessage&&<div className="scenario-message">{scenarioMessage}</div>}
     </section>
 
     {savedScenarios.length>1&&<section className="card panel compact-panel property-compare section-blue">
