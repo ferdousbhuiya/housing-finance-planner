@@ -57,3 +57,58 @@ tbody tr:last-child td{border-bottom:0}
   .grid.two:first-of-type{align-items:start}
   .grid.two:first-of-type>.card{height:auto}
 }
+
+/* Compact section color system */
+body{background:#eef3f8}
+main{padding:8px 10px}
+.compact-hero{margin-bottom:6px;padding:9px 14px}
+.metrics{margin:6px 0;gap:6px}
+.metric{padding:7px 9px}
+.grid.two,.finance-grid{gap:6px;margin:6px 0}
+.panel,.compact-panel{padding:9px}
+.section-title{margin-bottom:5px}
+.section-title h2{font-size:.94rem}
+.form-grid{gap:5px 7px}
+.field span{font-size:.69rem}
+.input-shell input{padding:6px 4px;font-size:.84rem}
+.slider-wrap{margin-top:6px;padding:7px 9px}
+.pmi-status{padding:6px 9px}
+.chart-grid .recharts-responsive-container{margin-top:-2px}
+.incremental-card{margin:6px 0}
+.finance-grid{grid-template-columns:1fr 1fr 1.45fr}
+.impact-grid{margin-top:6px}
+.impact-grid div{padding:7px}
+.mini-breakdown{margin-top:6px;padding:7px 9px}
+.amort-card{margin:6px 0}
+th,td{padding:5px 8px}
+.notice{margin:6px 0 0;padding:7px 10px}
+
+/* Soft backgrounds make sections visually distinct without overwhelming charts */
+.section-inputs{background:linear-gradient(180deg,#ffffff 0%,#f3f8ff 100%)}
+.section-cost{background:linear-gradient(180deg,#ffffff 0%,#effaf7 100%)}
+.section-blue{background:linear-gradient(180deg,#ffffff 0%,#f2f7ff 100%)}
+.section-purple{background:linear-gradient(180deg,#ffffff 0%,#f7f3ff 100%)}
+.section-savings{background:linear-gradient(180deg,#ffffff 0%,#f3fbf8 100%);border-color:#b9e1d6}
+.section-green{background:linear-gradient(180deg,#ffffff 0%,#f1faf5 100%)}
+.section-gold{background:linear-gradient(180deg,#ffffff 0%,#fff8e9 100%)}
+.section-slate{background:linear-gradient(180deg,#ffffff 0%,#f4f7fa 100%)}
+.section-amort{background:linear-gradient(180deg,#ffffff 0%,#f6f8fb 100%)}
+
+/* PMI threshold chart */
+.threshold-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:16px;margin-top:-2px;font-size:.68rem;color:#607286}
+.threshold-legend span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.dot.below{background:#0f766e}.dot.threshold{background:#e11d48}.dot.above{background:#2563eb}
+.custom-tooltip{display:grid;gap:4px;background:#fff;border:1px solid #cfdbe8;border-radius:10px;padding:9px 11px;box-shadow:0 8px 24px rgba(15,35,60,.14);font-size:.75rem;color:#294158}
+.custom-tooltip strong{font-size:.8rem;color:#10243e;margin-bottom:2px}
+.custom-tooltip span{display:flex;justify-content:space-between;gap:16px}
+.custom-tooltip em{font-style:normal;color:#be123c;font-weight:800;border-top:1px solid #f1d1da;padding-top:4px}
+
+/* Keep desktop rows content-height instead of matching neighboring cards */
+.grid,.finance-grid{align-items:start}
+.card{min-height:0}
+@media(max-width:760px){
+  main{padding:6px}
+  .panel,.compact-panel{padding:8px}
+  .threshold-legend{gap:8px}
+}
