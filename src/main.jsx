@@ -157,14 +157,14 @@ function App(){
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const loan=price*(1-pct/100);
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
+    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+(floodAnnual+windAnnual)/12+totalHoaMonthly+scenarioPmi)};
   }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate]);
 
   const downDollarData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const amount=price*pct/100;
     const loan=price-amount;
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-    return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
+    return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+(floodAnnual+windAnnual)/12+totalHoaMonthly+scenarioPmi)};
   }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate]);
 
   const incrementalDownData=useMemo(()=>{
@@ -175,7 +175,7 @@ function App(){
       const loan=Math.max(0,price-downAmount);
       const pct=price>0 ? downAmount/price*100 : 0;
       const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-      return monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi;
+      return monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+(floodAnnual+windAnnual)/12+totalHoaMonthly+scenarioPmi;
     };
     for(let amount=0;amount<=maxDown;amount+=step){
       const next=Math.min(amount+step,maxDown);
@@ -243,7 +243,7 @@ function App(){
     const loan=Math.max(0,price-newDown);
     const pct=price?newDown/price*100:0;
     const pmi=pct<20?loan*(pmiRate/100)/12:0;
-    const downPayment=monthlyPI(loan,rate,years)+calc.tax+calc.insurance+calc.flood+hoa+pmi;
+    const downPayment=monthlyPI(loan,rate,years)+calc.tax+calc.insurance+calc.flood+totalHoaMonthly+pmi;
     const afterPurchase=amortize({principal:calc.principal,annualRate:rate,years,lumpSum:cash});
     return {
       cash,
@@ -252,7 +252,7 @@ function App(){
       afterInterestSavings:Math.max(0,calc.base.totalInterest-afterPurchase.totalInterest),
       afterMonthsSaved:Math.max(0,calc.base.months-afterPurchase.months)
     };
-  },[price,calc,rate,years,pmiRate,hoa,extraCashAmount]);
+  },[price,calc,rate,years,pmiRate,totalHoaMonthly,extraCashAmount]);
 
   const afterPurchase=useMemo(()=>{
     if(currentBalance<=0||currentRate<=0||remainingYears<=0)return null;
@@ -305,7 +305,7 @@ function App(){
       user_id:userId,property_id:property.id,scenario_name:name,
       home_price:price,down_payment_pct:downPct,interest_rate:rate,loan_term_years:years,
       property_tax_annual:taxAnnual,homeowners_insurance_annual:insuranceAnnual,hoa_monthly:hoa,
-      pmi_rate_annual:pmiRate,flood_wind_insurance_annual:floodAnnual,maintenance_pct_annual:maintenancePct,
+      pmi_rate_annual:pmiRate,flood_wind_insurance_annual:floodAnnual+windAnnual,maintenance_pct_annual:maintenancePct,
       extra_monthly_principal:extraMonthly,lump_sum_principal:lumpSum,closing_cost_pct:closingPct,
       seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,appraisal_fee:appraisalFee,
       inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
@@ -332,7 +332,7 @@ function App(){
     const patch={
       scenario_name:scenarioName||"Scenario",home_price:price,down_payment_pct:downPct,interest_rate:rate,loan_term_years:years,
       property_tax_annual:taxAnnual,homeowners_insurance_annual:insuranceAnnual,hoa_monthly:hoa,pmi_rate_annual:pmiRate,
-      flood_wind_insurance_annual:floodAnnual,maintenance_pct_annual:maintenancePct,extra_monthly_principal:extraMonthly,
+      flood_wind_insurance_annual:floodAnnual+windAnnual,maintenance_pct_annual:maintenancePct,extra_monthly_principal:extraMonthly,
       lump_sum_principal:lumpSum,closing_cost_pct:closingPct,seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,
       appraisal_fee:appraisalFee,inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
       prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,estimated_monthly_cost:calc.totalMonthly,
@@ -346,7 +346,7 @@ function App(){
 
   const duplicateScenario=async sc=>{
     if(!sc?.cloud||!session?.user?.id){setScenarioMessage("Load a cloud scenario first.");return;}
-    const copyName=copyName;
+    const copyName=(sc.name||"Scenario")+" Copy";
     const userId=session.user.id;
     const {data:property,error:pe}=await supabase.from("housing_properties").insert({user_id:userId,property_name:copyName,address:sc.address||""}).select("id").single();
     if(pe){setScenarioMessage("Duplicate failed: "+pe.message);return;}
