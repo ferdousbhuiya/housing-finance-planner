@@ -319,3 +319,9 @@ th,td{padding:5px 8px}
 .sell-note{display:block;margin-top:8px;color:#64748b;font-size:.65rem}
 @media(max-width:1000px){.sell-equity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.sell-equity-controls,.sell-equity-grid{grid-template-columns:1fr}}
+
+.sell-year-card .cash-return{font-weight:800}
+.sell-year-card .cash-return.positive span,
+.sell-year-card .cash-return.positive b{color:#166534}
+.sell-year-card .cash-return.negative span,
+.sell-year-card .cash-return.negative b{color:#b91c1c}
