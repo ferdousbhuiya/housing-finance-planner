@@ -213,3 +213,10 @@ th,td{padding:5px 8px}
 .auth-status.warning{font-size:.72rem;color:#92400e}
 @media(max-width:900px){.account-bar{align-items:flex-start;flex-direction:column}.auth-panel,.auth-user{justify-content:flex-start;width:100%}.auth-message{text-align:left}}
 @media(max-width:620px){.auth-panel input{width:100%}.auth-tabs{width:100%}}
+
+/* Saved scenario cloud controls */
+.saved-scenario{display:flex;position:relative;min-width:0}
+.saved-scenario>button:first-child{padding-right:25px;width:100%}
+.saved-list .scenario-delete{position:absolute;right:3px;top:3px;width:20px;height:20px;min-width:20px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#64748b;line-height:18px;font-size:14px}
+.saved-list .scenario-delete:hover{background:#fee2e2;color:#b91c1c}
+.scenario-message{grid-column:1/-1;font-size:.68rem;color:#0f766e;text-align:right;padding-top:2px}
