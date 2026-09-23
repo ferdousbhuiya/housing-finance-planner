@@ -220,3 +220,15 @@ th,td{padding:5px 8px}
 .saved-list .scenario-delete{position:absolute;right:3px;top:3px;width:20px;height:20px;min-width:20px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#64748b;line-height:18px;font-size:14px}
 .saved-list .scenario-delete:hover{background:#fee2e2;color:#b91c1c}
 .scenario-message{grid-column:1/-1;font-size:.68rem;color:#0f766e;text-align:right;padding-top:2px}
+
+/* Scenario management + selected comparison */
+.saved-scenario.loaded{outline:2px solid #0f766e;border-radius:8px}
+.scenario-actions{position:absolute;right:3px;top:3px;display:flex;gap:3px;align-items:center}
+.saved-list .scenario-actions .mini-action{position:static;width:auto;height:20px;min-width:0;padding:0 5px;border:0;border-radius:5px;background:#e8f3f2;color:#0f766e;font-size:.61rem;line-height:20px}
+.saved-list .scenario-actions .scenario-delete{position:static}
+.saved-scenario>button:first-child{padding-right:70px}
+.compare-picker{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 6px}
+.compare-picker label{display:flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid #cbd9e8;border-radius:7px;background:#fff;font-size:.7rem;cursor:pointer}
+.compare-picker input{accent-color:#0f766e}
+.compare-hint{padding:10px;text-align:center;border:1px dashed #b9cbe0;border-radius:8px;color:#64748b;font-size:.72rem;background:rgba(255,255,255,.55)}
+.scenario-save button:disabled{opacity:.45;cursor:not-allowed}
