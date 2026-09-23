@@ -409,8 +409,12 @@ function App(){
     const sellingCosts=estimatedValue*(sellingCostPct/100);
     const equityBeforeSellingCosts=Math.max(0,estimatedValue-balance);
     const estimatedProceeds=Math.max(0,estimatedValue-sellingCosts-balance);
-    return {year,balance,principalPaid,estimatedValue,sellingCosts,equityBeforeSellingCosts,estimatedProceeds};
-  }),[calc.base.rows,calc.principal,price,homeAppreciationPct,sellingCostPct]);
+    const originalCash=calc.cashToClose;
+    const netCashGain=estimatedProceeds-originalCash;
+    const appreciationGain=estimatedValue-price;
+    const returnOnCash=originalCash>0?(netCashGain/originalCash)*100:0;
+    return {year,balance,principalPaid,estimatedValue,sellingCosts,equityBeforeSellingCosts,estimatedProceeds,originalCash,netCashGain,appreciationGain,returnOnCash};
+  }),[calc.base.rows,calc.principal,calc.cashToClose,price,homeAppreciationPct,sellingCostPct]);
 
   const monthsSaved=Math.max(0,calc.base.months-calc.extra.months);
   const interestSaved=Math.max(0,calc.base.totalInterest-calc.extra.totalInterest);
@@ -591,10 +595,14 @@ function App(){
           <div><span>Principal paid</span><b>{money(x.principalPaid)}</b></div>
           <div><span>Equity before selling costs</span><b>{money(x.equityBeforeSellingCosts)}</b></div>
           <div><span>Estimated selling costs</span><b>{money(x.sellingCosts)}</b></div>
+          <div><span>Original cash to close</span><b>{money(x.originalCash)}</b></div>
+          <div><span>Appreciation contribution</span><b>{money(x.appreciationGain)}</b></div>
           <div className="sell-proceeds"><span>Estimated proceeds</span><b>{money(x.estimatedProceeds)}</b></div>
+          <div className={"cash-return "+(x.netCashGain>=0?"positive":"negative")}><span>Net cash vs. purchase cash</span><b>{x.netCashGain>=0?"+":""}{money(x.netCashGain)}</b></div>
+          <div><span>Simple return on cash</span><b>{x.returnOnCash.toFixed(1)}%</b></div>
         </div>)}
       </div>
-      <small className="sell-note">Planning estimate only. Appreciation and selling costs are assumptions; proceeds exclude taxes, repairs, concessions, and other transaction-specific costs.</small>
+      <small className="sell-note">Planning estimate only. “Net cash vs. purchase cash” compares estimated sale proceeds with original cash to close. It is not investment profit: monthly ownership costs, taxes, repairs, concessions, improvements, and opportunity cost are not deducted.</small>
     </section>
 
     <AnalysisPanels
