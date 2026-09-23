@@ -195,3 +195,21 @@ th,td{padding:5px 8px}
 .property-compare-card>div span{color:#64748b}
 .property-compare-card>div b{color:#10243e}
 @media(max-width:760px){.scenario-save .address-input{width:100%}.property-compare-grid{grid-template-columns:1fr}}
+
+/* Supabase account access */
+.account-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 10px;margin:6px 0}
+.account-bar>div:first-child{display:flex;flex-direction:column;gap:1px;min-width:190px}
+.account-label{font-size:.66rem;font-weight:800;letter-spacing:.09em;color:#0f766e}
+.account-bar small{font-size:.68rem;color:#64748b}
+.auth-panel,.auth-user{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.auth-panel input{height:32px;border:1px solid #b9cbe0;border-radius:7px;padding:0 9px;font-size:.78rem;background:#fff}
+.auth-panel button,.auth-user button{height:32px}
+.auth-tabs{display:flex;gap:3px}
+.auth-tabs button{background:#eef4fa;color:#334155}
+.auth-tabs button.active{background:#173b63;color:#fff}
+.auth-link{border:0!important;background:transparent!important;color:#2563eb!important;padding:0 4px!important;font-size:.72rem}
+.auth-message{flex-basis:100%;text-align:right;font-size:.7rem;color:#0f766e}
+.auth-user span{font-size:.72rem;color:#475569}
+.auth-status.warning{font-size:.72rem;color:#92400e}
+@media(max-width:900px){.account-bar{align-items:flex-start;flex-direction:column}.auth-panel,.auth-user{justify-content:flex-start;width:100%}.auth-message{text-align:left}}
+@media(max-width:620px){.auth-panel input{width:100%}.auth-tabs{width:100%}}
