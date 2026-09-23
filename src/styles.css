@@ -262,3 +262,10 @@ th,td{padding:5px 8px}
   transform:translateY(0);
   box-shadow:0 1px 3px rgba(15,118,110,.3)!important;
 }
+
+/* Stronger visual hierarchy for section labels */
+.section-title > div > span{
+  color:#d97706;
+  font-weight:800;
+  letter-spacing:.08em;
+}
