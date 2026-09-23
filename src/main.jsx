@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
-import { monthlyPI, amortize } from './mortgageMath.js';
+import { monthlyPI, amortize, monthlyHousingCosts, cashToClose } from './mortgageMath.js';
 import { supabase } from './supabase.js';
 import AuthPanel from './AuthPanel.jsx';
 
@@ -112,16 +112,22 @@ function App(){
     const down=price*downPct/100, principal=Math.max(0,price-down);
     const base=amortize({principal,annualRate:rate,years});
     const extra=amortize({principal,annualRate:rate,years,extraMonthly,lumpSum});
-    const tax=taxAnnual/12,insurance=insuranceAnnual/12,flood=floodAnnual/12;
-    const maintenance=price*(maintenancePct/100)/12;
-    const pmi=downPct<20 ? principal*(pmiRate/100)/12 : 0;
-    const closingCosts=price*(closingPct/100);
-    const itemizedClosing=lenderFee+appraisalFee+inspectionFee+titleFee+recordingFee+prepaidInterest+initialEscrow;
-    const effectiveClosing=Math.max(closingCosts,itemizedClosing);
-    const cashToClose=Math.max(0,down+effectiveClosing-sellerCredit);
-    const totalMonthly=base.scheduled+tax+insurance+flood+hoa+pmi;
-    const trueMonthly=totalMonthly+maintenance;
-    return {down,principal,base,extra,tax,insurance,flood,maintenance,pmi,closingCosts,itemizedClosing,effectiveClosing,cashToClose,totalMonthly,trueMonthly};
+    const housing=monthlyHousingCosts({
+      principal,annualRate:rate,years,propertyTaxAnnual:taxAnnual,homeownersInsuranceAnnual:insuranceAnnual,
+      floodWindInsuranceAnnual:floodAnnual,hoaMonthly:hoa,downPaymentPct:downPct,pmiRateAnnual:pmiRate,
+      maintenancePctAnnual:maintenancePct,homePrice:price
+    });
+    const closing=cashToClose({
+      homePrice:price,downPaymentPct:downPct,closingCostPct:closingPct,sellerLenderCredits:sellerCredit,
+      lenderOriginationFee:lenderFee,appraisalFee,inspectionFee,titleSettlementFee:titleFee,
+      recordingGovernmentFee:recordingFee,prepaidInterest,initialEscrow
+    });
+    return {
+      down,principal,base,extra,tax:housing.tax,insurance:housing.insurance,flood:housing.floodWind,
+      maintenance:housing.maintenance,pmi:housing.pmi,closingCosts:closing.fallbackClosing,
+      itemizedClosing:closing.itemizedClosing,effectiveClosing:closing.effectiveClosing,
+      cashToClose:closing.cashToClose,totalMonthly:housing.mortgageRelated,trueMonthly:housing.trueMonthly
+    };
   },[price,downPct,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
 
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
