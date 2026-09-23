@@ -66,7 +66,12 @@ function App(){
   },[]);
 
   useEffect(()=>{
-    if(!supabase||!session?.user?.id) return;
+    if(!session?.user?.id){
+      setSavedScenarios([]);
+      setScenarioMessage("");
+      return;
+    }
+    if(!supabase) return;
     let active=true;
     const loadCloudScenarios=async()=>{
       const {data,error}=await supabase
@@ -254,8 +259,7 @@ function App(){
       monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
     };
     if(!supabase||!session?.user?.id){
-      setSavedScenarios(prev=>[localScenario,...prev].slice(0,6));
-      setScenarioMessage("Saved on this device. Sign in to save across devices.");
+      setScenarioMessage("Please sign in to save a scenario. Cloud scenarios are available only to the signed-in account.");
       return;
     }
     setScenarioMessage("Saving to cloud...");
@@ -320,7 +324,7 @@ function App(){
       <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
     </header>
     <section className="account-bar card">
-      <div><span className="account-label">CLOUD ACCOUNT</span><small>{session?"Account connected. Cloud property saving is the next step.":"Sign in now; your existing local scenarios remain available."}</small></div>
+      <div><span className="account-label">CLOUD ACCOUNT</span><small>{session?"Account connected. Your saved properties sync through Supabase.":"Sign in to view and save your properties."}</small></div>
       <AuthPanel session={session} onSessionChange={setSession}/>
     </section>
     <section className="scenario-bar card">
