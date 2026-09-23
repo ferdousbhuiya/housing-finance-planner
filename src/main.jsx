@@ -48,7 +48,7 @@ function App(){
   const [taxAnnual,setTaxAnnual]=useState(7200);
   const [insuranceAnnual,setInsuranceAnnual]=useState(3600);
   const [hoa,setHoa]=useState(220);
-  const [pmi,setPmi]=useState(0);
+  const [pmiRate,setPmiRate]=useState(0.6);
   const [extraMonthly,setExtraMonthly]=useState(300);
 
   const calc=useMemo(()=>{
@@ -56,13 +56,15 @@ function App(){
     const base=amortize({principal,annualRate:rate,years});
     const extra=amortize({principal,annualRate:rate,years,extraMonthly});
     const tax=taxAnnual/12,insurance=insuranceAnnual/12;
-    return {down,principal,base,extra,tax,insurance,totalMonthly:base.scheduled+tax+insurance+hoa+pmi};
-  },[price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmi,extraMonthly]);
+    const pmi=downPct<20 ? principal*(pmiRate/100)/12 : 0;
+    return {down,principal,base,extra,tax,insurance,pmi,totalMonthly:base.scheduled+tax+insurance+hoa+pmi};
+  },[price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,extraMonthly]);
 
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const loan=price*(1-pct/100);
-    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+hoa+(pct<20?Math.max(pmi,140):0))};
-  }),[price,rate,years,taxAnnual,insuranceAnnual,hoa,pmi]);
+    const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
+    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+hoa+scenarioPmi)};
+  }),[price,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate]);
 
   const yearly=useMemo(()=>{
     const max=Math.max(calc.base.rows.length,calc.extra.rows.length),out=[];
@@ -75,7 +77,7 @@ function App(){
     {name:'Property tax',value:Math.round(calc.tax)},
     {name:'Insurance',value:Math.round(calc.insurance)},
     {name:'HOA',value:Math.round(hoa)},
-    {name:'PMI',value:Math.round(pmi)}
+    {name:'PMI',value:Math.round(calc.pmi)}
   ];
   const monthsSaved=Math.max(0,calc.base.months-calc.extra.months);
   const interestSaved=Math.max(0,calc.base.totalInterest-calc.extra.totalInterest);
@@ -104,7 +106,11 @@ function App(){
           <Field label="Property tax / year" value={taxAnnual} onChange={setTaxAnnual} prefix="$" step={100}/>
           <Field label="Insurance / year" value={insuranceAnnual} onChange={setInsuranceAnnual} prefix="$" step={100}/>
           <Field label="HOA / month" value={hoa} onChange={setHoa} prefix="$" step={10}/>
-          <Field label="PMI / month" value={pmi} onChange={setPmi} prefix="$" step={10}/>
+          <Field label="PMI rate / year" value={pmiRate} onChange={setPmiRate} suffix="%" step={0.1}/>
+          <div className={"pmi-status "+(downPct<20?"active":"clear")}>
+            <div><strong>{downPct<20?"PMI included":"No PMI estimated"}</strong><span>{downPct<20?"Because the down payment is below 20%.":"Down payment is 20% or more."}</span></div>
+            <b>{downPct<20?money(calc.pmi)+"/mo":"$0/mo"}</b>
+          </div>
         </div>
         <div className="slider-wrap"><div><span>Down payment explorer</span><strong>{downPct}% · {money(calc.down)}</strong></div><input className="slider" type="range" min="3" max="40" value={downPct} onChange={e=>setDownPct(Number(e.target.value))}/></div>
       </div>
