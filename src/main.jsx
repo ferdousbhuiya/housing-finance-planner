@@ -49,6 +49,7 @@ function App(){
   const [closingPct,setClosingPct]=useState(3);
   const [sellerCredit,setSellerCredit]=useState(0);
   const [floodAnnual,setFloodAnnual]=useState(0);
+  const [windAnnual,setWindAnnual]=useState(0);
   const [maintenancePct,setMaintenancePct]=useState(1);
   const [pointsPct,setPointsPct]=useState(0);
   const [pointsRateReduction,setPointsRateReduction]=useState(0.25);
@@ -100,7 +101,7 @@ function App(){
         rate:Number(row.interest_rate),years:Number(row.loan_term_years),
         taxAnnual:Number(row.property_tax_annual),insuranceAnnual:Number(row.homeowners_insurance_annual),
         hoa:Number(row.hoa_monthly),pmiRate:Number(row.pmi_rate_annual),
-        floodAnnual:Number(row.flood_wind_insurance_annual),maintenancePct:Number(row.maintenance_pct_annual),
+        floodAnnual:Number(row.flood_wind_insurance_annual),windAnnual:0,maintenancePct:Number(row.maintenance_pct_annual),
         extraMonthly:Number(row.extra_monthly_principal),lumpSum:Number(row.lump_sum_principal),
         closingPct:Number(row.closing_cost_pct),sellerCredit:Number(row.seller_lender_credits),
         lenderFee:Number(row.lender_origination_fee),appraisalFee:Number(row.appraisal_fee),
@@ -134,7 +135,7 @@ function App(){
     const extra=amortize({principal,annualRate:rate,years,extraMonthly,lumpSum});
     const housing=monthlyHousingCosts({
       principal,annualRate:rate,years,propertyTaxAnnual:effectiveTaxAnnual,homeownersInsuranceAnnual:insuranceAnnual,
-      floodWindInsuranceAnnual:floodAnnual,hoaMonthly:totalHoaMonthly,downPaymentPct:downPct,pmiRateAnnual:pmiRate,
+      floodWindInsuranceAnnual:floodAnnual+windAnnual,hoaMonthly:totalHoaMonthly,downPaymentPct:downPct,pmiRateAnnual:pmiRate,
       maintenancePctAnnual:maintenancePct,homePrice:price
     });
     const closing=cashToClose({
@@ -148,20 +149,20 @@ function App(){
       itemizedClosing:closing.itemizedClosing,effectiveClosing:closing.effectiveClosing,
       cashToClose:closing.cashToClose,totalMonthly:housing.mortgageRelated,trueMonthly:housing.trueMonthly
     };
-  },[price,downPct,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
+  },[price,downPct,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
 
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const loan=price*(1-pct/100);
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
     return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
-  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
+  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate]);
 
   const downDollarData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const amount=price*pct/100;
     const loan=price-amount;
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
     return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
-  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
+  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate]);
 
   const incrementalDownData=useMemo(()=>{
     const step=5000;
@@ -188,7 +189,7 @@ function App(){
       });
     }
     return rows;
-  },[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
+  },[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate]);
 
   const yearly=useMemo(()=>{
     const max=Math.max(calc.base.rows.length,calc.extra.rows.length),out=[];
@@ -380,7 +381,7 @@ function App(){
     setActiveScenarioId(sc.id);
     setScenarioName(sc.name);setPropertyAddress(sc.address||"");setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
     setTaxAnnual(sc.taxAnnual);setInsuranceAnnual(sc.insuranceAnnual);setHoa(sc.hoa);setPmiRate(sc.pmiRate);
-    setFloodAnnual(sc.floodAnnual);setMaintenancePct(sc.maintenancePct);
+    setFloodAnnual(sc.floodAnnual); setWindAnnual(sc.windAnnual||0);setMaintenancePct(sc.maintenancePct);
     if(sc.extraMonthly!==undefined)setExtraMonthly(sc.extraMonthly);if(sc.lumpSum!==undefined)setLumpSum(sc.lumpSum);
     if(sc.closingPct!==undefined)setClosingPct(sc.closingPct);if(sc.sellerCredit!==undefined)setSellerCredit(sc.sellerCredit);
     if(sc.lenderFee!==undefined)setLenderFee(sc.lenderFee);if(sc.appraisalFee!==undefined)setAppraisalFee(sc.appraisalFee);
@@ -425,7 +426,7 @@ function App(){
 
     <section className="metrics">
       <Metric icon={<Landmark/>} label="Loan amount" value={money(calc.principal)} helper={downPct+'% down'}/>
-      <Metric icon={<WalletCards/>} label="Monthly housing cost" value={money(calc.totalMonthly)} helper="P&I + tax + insurance + HOA + PMI"/>
+      <Metric icon={<WalletCards/>} label="Monthly housing cost" value={money(calc.totalMonthly)} helper="P&I + tax + insurance + association/assessment costs + PMI"/>
       <Metric icon={<PiggyBank/>} label="Est. cash to close" value={money(calc.cashToClose)} helper={money(calc.down)+" down + costs − credits"}/>
       <Metric icon={<TrendingDown/>} label="Scheduled interest" value={money(calc.base.totalInterest)} helper={calc.base.months+' payments'}/>
     </section>
@@ -447,7 +448,8 @@ function App(){
           <label className="field"><span>Florida homestead estimate</span><div className="input-shell"><select value={homestead?"yes":"no"} onChange={e=>setHomestead(e.target.value==="yes")}><option value="no">Use entered property tax</option><option value="yes">Estimate homestead tax</option></select></div></label>
           {homestead&&<><Field label="School millage" value={schoolMillage} onChange={setSchoolMillage} suffix="mills" step={0.1} max={50}/><Field label="Non-school millage" value={nonSchoolMillage} onChange={setNonSchoolMillage} suffix="mills" step={0.1} max={50}/></>}
           {homestead&&<div className="pmi-status clear"><div><strong>Florida homestead planning estimate</strong><span>2026 exemption assumptions: $25,000 school; $51,411 non-school. Enter local millage from the property tax/TRIM information.</span></div><b>{money(effectiveTaxAnnual)}/yr</b></div>}
-          <Field label="Flood / wind insurance / year" value={floodAnnual} onChange={setFloodAnnual} prefix="$" step={100}/>
+          <Field label="Flood insurance / year" value={floodAnnual} onChange={setFloodAnnual} prefix="$" step={100}/>
+          <Field label="Wind / hurricane insurance / year" value={windAnnual} onChange={setWindAnnual} prefix="$" step={100}/>
           <Field label="Maintenance reserve / year" value={maintenancePct} onChange={setMaintenancePct} suffix="% of value" step={0.25}/>
           <Field label="PMI rate / year" value={pmiRate} onChange={setPmiRate} suffix="%" step={0.1}/>
           <div className={"pmi-status "+(downPct<20?"active":"clear")}>
@@ -466,6 +468,17 @@ function App(){
           <CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tickFormatter={v=>'$'+v}/><YAxis type="category" dataKey="name" width={126}/><Tooltip formatter={v=>money(v)}/><Bar dataKey="value" radius={[0,8,8,0]} fill="#2c7a7b"/>
         </BarChart></ResponsiveContainer>
         <div className="cost-strip"><span>Mortgage-related monthly cost <b>{money(calc.totalMonthly)}</b></span><span>+ maintenance reserve <b>{money(calc.maintenance)}</b></span><strong>True planning cost {money(calc.trueMonthly)}</strong></div>
+        <div className="ownership-cost-details">
+          <div><span>Property tax</span><b>{money(effectiveTaxAnnual/12)}/mo</b></div>
+          <div><span>Homeowners insurance</span><b>{money(insuranceAnnual/12)}/mo</b></div>
+          <div><span>Flood insurance</span><b>{money(floodAnnual/12)}/mo</b></div>
+          <div><span>Wind / hurricane</span><b>{money(windAnnual/12)}/mo</b></div>
+          <div><span>HOA</span><b>{money(hoa)}/mo</b></div>
+          <div><span>Condo fee</span><b>{money(condoFee)}/mo</b></div>
+          <div><span>CDD</span><b>{money(cddAnnual/12)}/mo</b></div>
+          <div><span>Special assessment</span><b>{money(specialAssessmentAnnual/12)}/mo</b></div>
+          <div className="ownership-total"><span>True ownership planning cost</span><b>{money(calc.trueMonthly)}/mo</b></div>
+        </div>
       </div>
     </section>
 
