@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
@@ -6,6 +6,12 @@ import './styles.css';
 
 const formatter = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const money=n=>formatter.format(Number.isFinite(n)?n:0);
+const monthYearFromNow=months=>{
+  const d=new Date();
+  d.setMonth(d.getMonth()+Math.max(0,Math.round(months)));
+  return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+};
+const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number.isFinite(n)?n:min));
 
 function monthlyPI(principal, annualRate, years){
   const n=years*12, r=annualRate/100/12;
@@ -31,9 +37,9 @@ function amortize({principal,annualRate,years,extraMonthly=0,lumpSum=0}){
   return {scheduled,totalInterest,months:month,rows};
 }
 
-function Field({label,value,onChange,prefix,suffix,step=1}){
+function Field({label,value,onChange,prefix,suffix,step=1,min=0,max=100000000}){
   return <label className="field"><span>{label}</span><div className="input-shell">
-    {prefix&&<b>{prefix}</b>}<input type="number" value={value} step={step} min="0" onChange={e=>onChange(Number(e.target.value))}/>{suffix&&<b>{suffix}</b>}
+    {prefix&&<b>{prefix}</b>}<input type="number" value={value} step={step} min={min} max={max} onChange={e=>onChange(clamp(Number(e.target.value),min,max))}/>{suffix&&<b>{suffix}</b>}
   </div></label>
 }
 
@@ -61,6 +67,17 @@ function App(){
   const [currentBalance,setCurrentBalance]=useState(0);
   const [currentRate,setCurrentRate]=useState(0);
   const [remainingYears,setRemainingYears]=useState(0);
+  const [lenderFee,setLenderFee]=useState(1500);
+  const [appraisalFee,setAppraisalFee]=useState(650);
+  const [inspectionFee,setInspectionFee]=useState(500);
+  const [titleFee,setTitleFee]=useState(1800);
+  const [recordingFee,setRecordingFee]=useState(350);
+  const [prepaidInterest,setPrepaidInterest]=useState(700);
+  const [initialEscrow,setInitialEscrow]=useState(2500);
+  const [scenarioName,setScenarioName]=useState("Scenario 1");
+  const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
+
+  useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
 
   const calc=useMemo(()=>{
     const down=price*downPct/100, principal=Math.max(0,price-down);
@@ -70,11 +87,13 @@ function App(){
     const maintenance=price*(maintenancePct/100)/12;
     const pmi=downPct<20 ? principal*(pmiRate/100)/12 : 0;
     const closingCosts=price*(closingPct/100);
-    const cashToClose=Math.max(0,down+closingCosts-sellerCredit);
+    const itemizedClosing=lenderFee+appraisalFee+inspectionFee+titleFee+recordingFee+prepaidInterest+initialEscrow;
+    const effectiveClosing=Math.max(closingCosts,itemizedClosing);
+    const cashToClose=Math.max(0,down+effectiveClosing-sellerCredit);
     const totalMonthly=base.scheduled+tax+insurance+flood+hoa+pmi;
     const trueMonthly=totalMonthly+maintenance;
-    return {down,principal,base,extra,tax,insurance,flood,maintenance,pmi,closingCosts,cashToClose,totalMonthly,trueMonthly};
-  },[price,downPct,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct]);
+    return {down,principal,base,extra,tax,insurance,flood,maintenance,pmi,closingCosts,itemizedClosing,effectiveClosing,cashToClose,totalMonthly,trueMonthly};
+  },[price,downPct,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
 
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const loan=price*(1-pct/100);
@@ -183,6 +202,42 @@ function App(){
     return {base,accelerated};
   },[currentBalance,currentRate,remainingYears,extraMonthly,lumpSum]);
 
+  const pmiMilestone=useMemo(()=>{
+    if(downPct>=20)return {base:0,extra:0,needed:0};
+    const target=price*0.8;
+    const baseRow=calc.base.rows.find(r=>r.balance<=target);
+    const extraRow=calc.extra.rows.find(r=>r.balance<=target);
+    return {
+      base:baseRow?.month||0,
+      extra:extraRow?.month||0,
+      needed:Math.max(0,calc.principal-target)
+    };
+  },[downPct,price,calc.principal,calc.base.rows,calc.extra.rows]);
+
+  const payoffBase=monthYearFromNow(calc.base.months);
+  const payoffExtra=monthYearFromNow(calc.extra.months);
+
+  const validationIssues=[
+    ...(downPct>100?["Down payment cannot exceed 100%."]:[]),
+    ...(rate<0?["Interest rate cannot be negative."]:[]),
+    ...(years<=0?["Loan term must be greater than zero."]:[]),
+    ...(sellerCredit>calc.down+calc.effectiveClosing?["Credits exceed estimated cash required."]:[])
+  ];
+
+  const saveScenario=()=>{
+    const scenario={
+      id:Date.now(),name:scenarioName||("Scenario "+(savedScenarios.length+1)),
+      price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,floodAnnual,maintenancePct,
+      monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
+    };
+    setSavedScenarios(prev=>[scenario,...prev].slice(0,6));
+  };
+  const loadScenario=sc=>{
+    setScenarioName(sc.name);setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
+    setTaxAnnual(sc.taxAnnual);setInsuranceAnnual(sc.insuranceAnnual);setHoa(sc.hoa);setPmiRate(sc.pmiRate);
+    setFloodAnnual(sc.floodAnnual);setMaintenancePct(sc.maintenancePct);
+  };
+
   const breakdown=[
     {name:'Principal + interest',value:Math.round(calc.base.scheduled)},
     {name:'Property tax',value:Math.round(calc.tax)},
@@ -199,6 +254,10 @@ function App(){
       <div className="brand-row"><div className="brand-icon"><Home size={22}/></div><div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>Mortgage Decision Dashboard</h1><p>Change an assumption and see the financial effect instantly.</p></div></div>
       <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
     </header>
+    <section className="scenario-bar card">
+      <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
+      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><button key={sc.id} onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{money(sc.monthly)}/mo</small></button>):<span>No saved scenarios yet</span>}</div>
+    </section>
 
     <section className="metrics">
       <Metric icon={<Landmark/>} label="Loan amount" value={money(calc.principal)} helper={downPct+'% down'}/>
@@ -212,9 +271,9 @@ function App(){
         <div className="section-title"><div><span>PURCHASE ASSUMPTIONS</span><h2>Build your scenario</h2></div></div>
         <div className="form-grid">
           <Field label="Home price" value={price} onChange={setPrice} prefix="$" step={5000}/>
-          <Field label="Down payment" value={downPct} onChange={setDownPct} suffix="%" />
-          <Field label="Interest rate" value={rate} onChange={setRate} suffix="%" step={0.125}/>
-          <Field label="Loan term" value={years} onChange={setYears} suffix="years" step={5}/>
+          <Field label="Down payment" value={downPct} onChange={setDownPct} suffix="%" max={100}/>
+          <Field label="Interest rate" value={rate} onChange={setRate} suffix="%" step={0.125} max={30}/>
+          <Field label="Loan term" value={years} onChange={setYears} suffix="years" step={5} min={1} max={50}/>
           <Field label="Property tax / year" value={taxAnnual} onChange={setTaxAnnual} prefix="$" step={100}/>
           <Field label="Insurance / year" value={insuranceAnnual} onChange={setInsuranceAnnual} prefix="$" step={100}/>
           <Field label="HOA / month" value={hoa} onChange={setHoa} prefix="$" step={10}/>
@@ -227,6 +286,8 @@ function App(){
           </div>
         </div>
         <div className="slider-wrap"><div><span>Down payment explorer</span><strong>{downPct}% · {money(calc.down)}</strong></div><input className="slider" type="range" min="3" max="40" value={downPct} onChange={e=>setDownPct(Number(e.target.value))}/></div>
+        {downPct<20&&<div className="pmi-milestone"><span>Estimated PMI threshold balance: <b>{money(price*0.8)}</b></span><span>Scheduled: <b>{pmiMilestone.base?monthYearFromNow(pmiMilestone.base):"N/A"}</b></span><span>With extra payments: <b>{pmiMilestone.extra?monthYearFromNow(pmiMilestone.extra):"N/A"}</b></span></div>}
+        {validationIssues.length>0&&<div className="validation-box">{validationIssues.map((x,i)=><span key={i}>{x}</span>)}</div>}
       </div>
 
       <div className="card panel section-cost">
@@ -315,19 +376,27 @@ function App(){
           <Field label="Extra every month" value={extraMonthly} onChange={setExtraMonthly} prefix="$" step={50}/>
           <Field label="One-time principal payment" value={lumpSum} onChange={setLumpSum} prefix="$" step={500}/>
         </div>
+        <div className="payoff-strip"><span>Scheduled payoff <b>{payoffBase}</b></span><span>Accelerated payoff <b>{payoffExtra}</b></span></div>
         <div className="impact-grid">
           <div><span>Time saved</span><strong>{Math.floor(monthsSaved/12)}y {monthsSaved%12}m</strong></div>
           <div><span>Interest saved</span><strong>{money(interestSaved)}</strong></div>
-          <div><span>New payoff</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong></div>
+          <div><span>New payoff</span><strong>{Math.floor(calc.extra.months/12)}y {calc.extra.months%12}m</strong><small>{payoffExtra}</small></div>
         </div>
       </div>
       <div className="card panel compact-panel section-gold">
         <div className="section-title"><div><span>CASH TO CLOSE</span><h2>Purchase costs</h2></div><strong>{money(calc.cashToClose)}</strong></div>
         <div className="form-grid">
-          <Field label="Closing costs estimate" value={closingPct} onChange={setClosingPct} suffix="%" step={0.25}/>
+          <Field label="Closing cost fallback" value={closingPct} onChange={setClosingPct} suffix="%" step={0.25} max={15}/>
           <Field label="Seller / lender credits" value={sellerCredit} onChange={setSellerCredit} prefix="$" step={500}/>
+          <Field label="Lender / origination" value={lenderFee} onChange={setLenderFee} prefix="$" step={100}/>
+          <Field label="Appraisal" value={appraisalFee} onChange={setAppraisalFee} prefix="$" step={50}/>
+          <Field label="Inspection" value={inspectionFee} onChange={setInspectionFee} prefix="$" step={50}/>
+          <Field label="Title / settlement" value={titleFee} onChange={setTitleFee} prefix="$" step={100}/>
+          <Field label="Recording / government" value={recordingFee} onChange={setRecordingFee} prefix="$" step={50}/>
+          <Field label="Prepaid interest" value={prepaidInterest} onChange={setPrepaidInterest} prefix="$" step={50}/>
+          <Field label="Initial escrow" value={initialEscrow} onChange={setInitialEscrow} prefix="$" step={100}/>
         </div>
-        <div className="mini-breakdown"><span>Down payment <b>{money(calc.down)}</b></span><span>Closing costs <b>{money(calc.closingCosts)}</b></span><span>Credits <b>− {money(sellerCredit)}</b></span></div>
+        <div className="mini-breakdown"><span>Down payment <b>{money(calc.down)}</b></span><span>Itemized closing <b>{money(calc.itemizedClosing)}</b></span><span>Fallback % estimate <b>{money(calc.closingCosts)}</b></span><span>Used in estimate <b>{money(calc.effectiveClosing)}</b></span><span>Credits <b>− {money(sellerCredit)}</b></span></div>
       </div>
       <div className="card panel compact-panel balance-card section-slate">
         <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Scheduled vs. accelerated</h2></div></div>
