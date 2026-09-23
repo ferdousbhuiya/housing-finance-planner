@@ -31,14 +31,14 @@ export default function AnalysisPanels({
         <div className="mini-breakdown"><span>Upfront points cost <b>{money(pointsAnalysis.pointsCost)}</b></span><span>New rate <b>{pointsAnalysis.reducedRate.toFixed(3)}%</b></span><span>Monthly P&I saving <b>{money(pointsAnalysis.monthlySavings)}</b></span><span>Break-even <b>{pointsAnalysis.breakEven?pointsAnalysis.breakEven+" months":"N/A"}</b></span></div>
       </div>
       <div className="card panel compact-panel section-savings">
-        <div className="section-title"><div><span>EXTRA CASH COMPARISON</span><h2>What does another {money(extraCashAmount)} change?</h2></div></div>
+        <div className="section-title"><div><span>EXTRA CASH: PURCHASE VS. AFTER PURCHASE</span><h2>Where should an extra {money(extraCashAmount)} go?</h2></div></div>
         <div className="extra-cash-control">
           <label><span>Extra cash amount</span><select value={extraCashAmount} onChange={e=>setExtraCashAmount(Number(e.target.value))}>
             {[5000,10000,15000,20000,25000,30000,40000,50000].map(v=><option key={v} value={v}>{money(v)}</option>)}
           </select></label>
           <input type="range" min="5000" max="50000" step="5000" value={extraCashAmount} onChange={e=>setExtraCashAmount(Number(e.target.value))}/>
         </div>
-        <div className="compare-cards two-up"><div><strong>Use at purchase</strong><span>{money(extraCashComparison.downMonthlySavings)}/mo lower housing payment</span><small>Includes estimated PMI effect</small></div><div><strong>Pay principal after purchase</strong><span>{money(extraCashComparison.afterInterestSavings)} interest saved</span><small>{Math.floor(extraCashComparison.afterMonthsSaved/12)}y {extraCashComparison.afterMonthsSaved%12}m sooner</small></div></div>
+        <div className="compare-cards two-up"><div><strong>Option 1 · Add to down payment</strong><span>{money(extraCashComparison.downMonthlySavings)}/mo lower housing payment</span><small>Applied at purchase; includes estimated PMI effect</small></div><div><strong>Option 2 · Pay principal after closing</strong><span>{money(extraCashComparison.afterInterestSavings)} interest saved</span><small>Applied after purchase · {Math.floor(extraCashComparison.afterMonthsSaved/12)}y {extraCashComparison.afterMonthsSaved%12}m sooner</small></div></div>
       </div>
       <div className="card panel compact-panel section-slate">
         <div className="section-title"><div><span>AFTER-PURCHASE MODE</span><h2>Track an existing mortgage</h2></div></div>
