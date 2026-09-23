@@ -325,3 +325,9 @@ th,td{padding:5px 8px}
 .sell-year-card .cash-return.positive b{color:#166534}
 .sell-year-card .cash-return.negative span,
 .sell-year-card .cash-return.negative b{color:#b91c1c}
+
+.extra-cash-control{display:grid;grid-template-columns:minmax(150px,190px) 1fr;gap:10px;align-items:end;margin:7px 0 10px}
+.extra-cash-control label{display:flex;flex-direction:column;gap:4px;font-size:.68rem;color:#64748b}
+.extra-cash-control select{width:100%;padding:7px 8px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#0f172a;font-weight:700}
+.extra-cash-control input[type="range"]{width:100%;accent-color:#d97706;margin-bottom:7px}
+@media(max-width:600px){.extra-cash-control{grid-template-columns:1fr}}
