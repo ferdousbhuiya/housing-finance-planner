@@ -153,3 +153,32 @@ th,td{padding:5px 8px}
   .hero{box-shadow:none}
   .recharts-responsive-container{min-height:180px}
 }
+
+/* Compact topical layout: payoff controls + payoff chart stay together */
+.payoff-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(330px,.85fr);gap:6px;margin:6px 0;align-items:start}
+.payoff-pair{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(420px,1.28fr);gap:6px;align-items:start}
+.payoff-pair>.card,.closing-card{align-self:start}
+.payoff-pair .balance-card{padding-bottom:6px}
+.payoff-pair .balance-card .section-title{margin-bottom:0}
+.closing-card{padding:8px}
+.closing-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 6px}
+.closing-fields .field span{font-size:.66rem;margin-bottom:2px}
+.closing-fields .input-shell input{padding:5px 3px;font-size:.8rem}
+.closing-summary{grid-template-columns:1fr 1fr;column-gap:12px;padding:6px 8px;margin-top:5px}
+.closing-summary span{font-size:.69rem}
+.payoff-pair .impact-grid div{padding:6px}
+.payoff-pair .impact-grid strong{font-size:.92rem}
+.payoff-pair .payoff-strip{margin-bottom:5px}
+.payoff-pair .payoff-strip span{padding:5px 7px}
+@media(max-width:1200px){
+  .payoff-layout{grid-template-columns:1fr}
+  .closing-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .payoff-pair{grid-template-columns:1fr}
+  .closing-fields{grid-template-columns:1fr 1fr}
+}
+@media(max-width:620px){
+  .closing-fields{grid-template-columns:1fr}
+  .closing-summary{grid-template-columns:1fr}
+}
