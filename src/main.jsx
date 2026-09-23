@@ -52,6 +52,7 @@ function App(){
   const [prepaidInterest,setPrepaidInterest]=useState(700);
   const [initialEscrow,setInitialEscrow]=useState(2500);
   const [scenarioName,setScenarioName]=useState("Scenario 1");
+  const [propertyAddress,setPropertyAddress]=useState("");
   const [savedScenarios,setSavedScenarios]=useState(()=>{try{return JSON.parse(localStorage.getItem("hfp-scenarios")||"[]")}catch{return []}});
 
   useEffect(()=>{localStorage.setItem("hfp-scenarios",JSON.stringify(savedScenarios));},[savedScenarios]);
@@ -203,14 +204,14 @@ function App(){
 
   const saveScenario=()=>{
     const scenario={
-      id:Date.now(),name:scenarioName||("Scenario "+(savedScenarios.length+1)),
+      id:Date.now(),name:scenarioName||("Scenario "+(savedScenarios.length+1)),address:propertyAddress.trim(),
       price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,pmiRate,floodAnnual,maintenancePct,
       monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
     };
     setSavedScenarios(prev=>[scenario,...prev].slice(0,6));
   };
   const loadScenario=sc=>{
-    setScenarioName(sc.name);setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
+    setScenarioName(sc.name);setPropertyAddress(sc.address||"");setPrice(sc.price);setDownPct(sc.downPct);setRate(sc.rate);setYears(sc.years);
     setTaxAnnual(sc.taxAnnual);setInsuranceAnnual(sc.insuranceAnnual);setHoa(sc.hoa);setPmiRate(sc.pmiRate);
     setFloodAnnual(sc.floodAnnual);setMaintenancePct(sc.maintenancePct);
   };
@@ -232,9 +233,22 @@ function App(){
       <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
     </header>
     <section className="scenario-bar card">
-      <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
-      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><button key={sc.id} onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{money(sc.monthly)}/mo</small></button>):<span>No saved scenarios yet</span>}</div>
+      <div className="scenario-save"><input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} aria-label="Scenario name" placeholder="Scenario name"/><input className="address-input" value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} aria-label="Property address" placeholder="House address"/><button onClick={saveScenario}>Save scenario</button><button className="secondary" onClick={()=>window.print()}>Print / Export PDF</button></div>
+      <div className="saved-list">{savedScenarios.length?savedScenarios.map(sc=><button key={sc.id} onClick={()=>loadScenario(sc)} title={"Load "+sc.name}>{sc.name}<small>{sc.address||"No address"} · {money(sc.monthly)}/mo</small></button>):<span>No saved scenarios yet</span>}</div>
     </section>
+
+    {savedScenarios.length>1&&<section className="card panel compact-panel property-compare section-blue">
+      <div className="section-title"><div><span>HOUSE-TO-HOUSE COMPARISON</span><h2>Saved properties</h2></div><small>Click a saved scenario above to load it</small></div>
+      <div className="property-compare-grid">{savedScenarios.map(sc=><div className="property-compare-card" key={sc.id}>
+        <strong>{sc.name}</strong><span className="property-address">{sc.address||"Address not entered"}</span>
+        <div><span>Price</span><b>{money(sc.price)}</b></div>
+        <div><span>Down</span><b>{sc.downPct}%</b></div>
+        <div><span>Rate</span><b>{sc.rate}%</b></div>
+        <div><span>Monthly</span><b>{money(sc.monthly)}</b></div>
+        <div><span>Cash to close</span><b>{money(sc.cashToClose)}</b></div>
+        <div><span>Total interest</span><b>{money(sc.interest)}</b></div>
+      </div>)}</div>
+    </section>}
 
     <section className="metrics">
       <Metric icon={<Landmark/>} label="Loan amount" value={money(calc.principal)} helper={downPct+'% down'}/>
