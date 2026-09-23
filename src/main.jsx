@@ -133,7 +133,29 @@ function App(){
     <section className="grid two chart-grid">
       <div className="card panel compact-panel">
         <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>Monthly payment vs. down payment %</h2></div></div>
-        <ResponsiveContainer width="100%" height={245}><LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="pct"/><YAxis tickFormatter={v=>'
+        <ResponsiveContainer width="100%" height={245}>
+          <LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3"/>
+            <XAxis dataKey="pct"/>
+            <YAxis tickFormatter={v => `$${v}`}/>
+            <Tooltip formatter={v => money(v)}/>
+            <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#2563eb" strokeWidth={3} dot={{r:4}}/>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card panel compact-panel">
+        <div className="section-title"><div><span>CASH DOWN IMPACT</span><h2>Monthly payment vs. down payment $</h2></div></div>
+        <ResponsiveContainer width="100%" height={245}>
+          <LineChart data={downDollarData} margin={{top:5,right:16,left:4,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3"/>
+            <XAxis dataKey="amount" tickFormatter={v => `$${Math.round(v/1000)}k`}/>
+            <YAxis tickFormatter={v => `$${v}`}/>
+            <Tooltip labelFormatter={v => `Down payment: ${money(v)}`} formatter={v => money(v)}/>
+            <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#7c3aed" strokeWidth={3} dot={{r:4}}/>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
 
     <section className="grid two">
       <div className="card panel">
