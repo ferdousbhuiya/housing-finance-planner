@@ -37,6 +37,12 @@ function App(){
   const [taxAnnual,setTaxAnnual]=useState(7200);
   const [insuranceAnnual,setInsuranceAnnual]=useState(3600);
   const [hoa,setHoa]=useState(220);
+  const [condoFee,setCondoFee]=useState(0);
+  const [cddAnnual,setCddAnnual]=useState(0);
+  const [specialAssessmentAnnual,setSpecialAssessmentAnnual]=useState(0);
+  const [homestead,setHomestead]=useState(false);
+  const [schoolMillage,setSchoolMillage]=useState(6.5);
+  const [nonSchoolMillage,setNonSchoolMillage]=useState(12);
   const [pmiRate,setPmiRate]=useState(0.6);
   const [extraMonthly,setExtraMonthly]=useState(300);
   const [lumpSum,setLumpSum]=useState(0);
@@ -112,13 +118,23 @@ function App(){
     return()=>{active=false};
   },[session?.user?.id]);
 
+  const floridaTaxEstimate=useMemo(()=>{
+    if(!homestead)return null;
+    const schoolTaxable=Math.max(0,price-25000);
+    const nonSchoolTaxable=Math.max(0,price-51411);
+    return schoolTaxable*(schoolMillage/1000)+nonSchoolTaxable*(nonSchoolMillage/1000);
+  },[homestead,price,schoolMillage,nonSchoolMillage]);
+
+  const effectiveTaxAnnual=floridaTaxEstimate??taxAnnual;
+  const totalHoaMonthly=hoa+condoFee+cddAnnual/12+specialAssessmentAnnual/12;
+
   const calc=useMemo(()=>{
     const down=price*downPct/100, principal=Math.max(0,price-down);
     const base=amortize({principal,annualRate:rate,years});
     const extra=amortize({principal,annualRate:rate,years,extraMonthly,lumpSum});
     const housing=monthlyHousingCosts({
-      principal,annualRate:rate,years,propertyTaxAnnual:taxAnnual,homeownersInsuranceAnnual:insuranceAnnual,
-      floodWindInsuranceAnnual:floodAnnual,hoaMonthly:hoa,downPaymentPct:downPct,pmiRateAnnual:pmiRate,
+      principal,annualRate:rate,years,propertyTaxAnnual:effectiveTaxAnnual,homeownersInsuranceAnnual:insuranceAnnual,
+      floodWindInsuranceAnnual:floodAnnual,hoaMonthly:totalHoaMonthly,downPaymentPct:downPct,pmiRateAnnual:pmiRate,
       maintenancePctAnnual:maintenancePct,homePrice:price
     });
     const closing=cashToClose({
@@ -132,20 +148,20 @@ function App(){
       itemizedClosing:closing.itemizedClosing,effectiveClosing:closing.effectiveClosing,
       cashToClose:closing.cashToClose,totalMonthly:housing.mortgageRelated,trueMonthly:housing.trueMonthly
     };
-  },[price,downPct,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
+  },[price,downPct,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
 
   const downData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const loan=price*(1-pct/100);
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+floodAnnual/12+hoa+scenarioPmi)};
-  }),[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
+    return {pct:pct+'%',payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
+  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
 
   const downDollarData=useMemo(()=>[5,10,15,20,25,30,35,40].map(pct=>{
     const amount=price*pct/100;
     const loan=price-amount;
     const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-    return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+floodAnnual/12+hoa+scenarioPmi)};
-  }),[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
+    return {amount:Math.round(amount),payment:Math.round(monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi)};
+  }),[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
 
   const incrementalDownData=useMemo(()=>{
     const step=5000;
@@ -155,7 +171,7 @@ function App(){
       const loan=Math.max(0,price-downAmount);
       const pct=price>0 ? downAmount/price*100 : 0;
       const scenarioPmi=pct<20 ? loan*(pmiRate/100)/12 : 0;
-      return monthlyPI(loan,rate,years)+taxAnnual/12+insuranceAnnual/12+floodAnnual/12+hoa+scenarioPmi;
+      return monthlyPI(loan,rate,years)+effectiveTaxAnnual/12+insuranceAnnual/12+floodAnnual/12+totalHoaMonthly+scenarioPmi;
     };
     for(let amount=0;amount<=maxDown;amount+=step){
       const next=Math.min(amount+step,maxDown);
@@ -172,7 +188,7 @@ function App(){
       });
     }
     return rows;
-  },[price,rate,years,taxAnnual,insuranceAnnual,floodAnnual,hoa,pmiRate]);
+  },[price,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,totalHoaMonthly,pmiRate]);
 
   const yearly=useMemo(()=>{
     const max=Math.max(calc.base.rows.length,calc.extra.rows.length),out=[];
@@ -425,6 +441,12 @@ function App(){
           <Field label="Property tax / year" value={taxAnnual} onChange={setTaxAnnual} prefix="$" step={100}/>
           <Field label="Insurance / year" value={insuranceAnnual} onChange={setInsuranceAnnual} prefix="$" step={100}/>
           <Field label="HOA / month" value={hoa} onChange={setHoa} prefix="$" step={10}/>
+          <Field label="Condo fee / month" value={condoFee} onChange={setCondoFee} prefix="$" step={10}/>
+          <Field label="CDD / year" value={cddAnnual} onChange={setCddAnnual} prefix="$" step={100}/>
+          <Field label="Special assessment / year" value={specialAssessmentAnnual} onChange={setSpecialAssessmentAnnual} prefix="$" step={100}/>
+          <label className="field"><span>Florida homestead estimate</span><div className="input-shell"><select value={homestead?"yes":"no"} onChange={e=>setHomestead(e.target.value==="yes")}><option value="no">Use entered property tax</option><option value="yes">Estimate homestead tax</option></select></div></label>
+          {homestead&&<><Field label="School millage" value={schoolMillage} onChange={setSchoolMillage} suffix="mills" step={0.1} max={50}/><Field label="Non-school millage" value={nonSchoolMillage} onChange={setNonSchoolMillage} suffix="mills" step={0.1} max={50}/></>}
+          {homestead&&<div className="pmi-status clear"><div><strong>Florida homestead planning estimate</strong><span>2026 exemption assumptions: $25,000 school; $51,411 non-school. Enter local millage from the property tax/TRIM information.</span></div><b>{money(effectiveTaxAnnual)}/yr</b></div>}
           <Field label="Flood / wind insurance / year" value={floodAnnual} onChange={setFloodAnnual} prefix="$" step={100}/>
           <Field label="Maintenance reserve / year" value={maintenancePct} onChange={setMaintenancePct} suffix="% of value" step={0.25}/>
           <Field label="PMI rate / year" value={pmiRate} onChange={setPmiRate} suffix="%" step={0.1}/>
