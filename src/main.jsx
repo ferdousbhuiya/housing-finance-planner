@@ -53,6 +53,7 @@ function App(){
   const [maintenancePct,setMaintenancePct]=useState(1);
   const [pointsPct,setPointsPct]=useState(0);
   const [pointsRateReduction,setPointsRateReduction]=useState(0.25);
+  const [extraCashAmount,setExtraCashAmount]=useState(10000);
   const [currentBalance,setCurrentBalance]=useState(0);
   const [currentRate,setCurrentRate]=useState(0);
   const [remainingYears,setRemainingYears]=useState(0);
@@ -237,7 +238,7 @@ function App(){
   },[calc.principal,calc.base.scheduled,pointsPct,pointsRateReduction,rate,years]);
 
   const extraCashComparison=useMemo(()=>{
-    const cash=10000;
+    const cash=extraCashAmount;
     const newDown=Math.min(price,calc.down+cash);
     const loan=Math.max(0,price-newDown);
     const pct=price?newDown/price*100:0;
@@ -251,7 +252,7 @@ function App(){
       afterInterestSavings:Math.max(0,calc.base.totalInterest-afterPurchase.totalInterest),
       afterMonthsSaved:Math.max(0,calc.base.months-afterPurchase.months)
     };
-  },[price,calc,rate,years,pmiRate,hoa]);
+  },[price,calc,rate,years,pmiRate,hoa,extraCashAmount]);
 
   const afterPurchase=useMemo(()=>{
     if(currentBalance<=0||currentRate<=0||remainingYears<=0)return null;
@@ -610,6 +611,7 @@ function App(){
       rateComparison={rateComparison} pointsPct={pointsPct} setPointsPct={setPointsPct}
       pointsRateReduction={pointsRateReduction} setPointsRateReduction={setPointsRateReduction}
       pointsAnalysis={pointsAnalysis} extraCashComparison={extraCashComparison}
+      extraCashAmount={extraCashAmount} setExtraCashAmount={setExtraCashAmount}
       currentBalance={currentBalance} setCurrentBalance={setCurrentBalance}
       currentRate={currentRate} setCurrentRate={setCurrentRate}
       remainingYears={remainingYears} setRemainingYears={setRemainingYears}
