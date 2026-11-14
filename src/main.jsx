@@ -3,30 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
-import { monthlyPI, amortize, monthlyHousingCosts, cashToClose } from './mortgageMath.js';
+import { monthlyPI, monthsRemaining, amortize, monthlyHousingCosts, cashToClose } from './mortgageMath.js';
+import { money, groupDigits, clamp, monthYearFromNow } from './format.js';
 import { supabase } from './supabase.js';
 import AuthPanel from './AuthPanel.jsx';
 import { ScenarioManager, PropertyComparison } from './ScenarioPanels.jsx';
 import { PayoffAccelerator, BalanceOverTime, ClosingCosts } from './PayoffAndClosing.jsx';
-import { PrincipalVsInterest, TermComparison, RateSensitivity, PointsBreakEven, ExtraCashComparison, AfterPurchaseMode } from './AnalysisPanels.jsx';
-
-const formatter = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
-const money=n=>formatter.format(Number.isFinite(n)?n:0);
-const monthYearFromNow=months=>{
-  const d=new Date();
-  d.setMonth(d.getMonth()+Math.max(0,Math.round(months)));
-  return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
-};
-const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number.isFinite(n)?n:min));
-
-// Put thousands separators into a plain number string, leaving any decimals alone.
-const groupDigits=str=>{
-  const neg=str.startsWith('-');
-  const body=neg?str.slice(1):str;
-  const [whole,...rest]=body.split('.');
-  const grouped=whole.replace(/\B(?=(\d{3})+(?!\d))/g,',');
-  return (neg?'-':'')+grouped+(rest.length?'.'+rest.join('.'):'');
-};
+import { PrincipalVsInterest, TermComparison, RateSensitivity, PointsBreakEven, ExtraCashComparison } from './AnalysisPanels.jsx';
+import OwnerMode from './OwnerMode.jsx';
 
 const signedMoney=n=>Math.abs(n)<1?"same":(n>0?"+":"\u2212")+money(Math.abs(n));
 const deltaCls=n=>"delta "+(Math.abs(n)<1?"same":n>0?"up":"down");
@@ -36,7 +20,8 @@ const TABS=[
   {id:'closing',label:'Cash to close'},
   {id:'payoff',label:'Pay it off faster'},
   {id:'sell',label:'If I sell'},
-  {id:'compare',label:'Compare houses'}
+  {id:'compare',label:'Compare houses'},
+  {id:'owner',label:'I own it'}
 ];
 
 function Field({label,value,onChange,prefix,suffix,step=1,min=0,max=100000000}){
@@ -112,9 +97,6 @@ function App(){
   const [pointsPct,setPointsPct]=useState(0);
   const [pointsRateReduction,setPointsRateReduction]=useState(0.25);
   const [extraCashAmount,setExtraCashAmount]=useState(10000);
-  const [currentBalance,setCurrentBalance]=useState(0);
-  const [currentRate,setCurrentRate]=useState(0);
-  const [remainingYears,setRemainingYears]=useState(0);
   const [homeAppreciationPct,setHomeAppreciationPct]=useState(3);
   const [sellingCostPct,setSellingCostPct]=useState(7);
   const [lenderFee,setLenderFee]=useState(1500);
@@ -132,6 +114,11 @@ function App(){
   const [activeScenarioId,setActiveScenarioId]=useState(null);
   const [compareIds,setCompareIds]=useState([]);
   const [tab,setTab]=useState('payment');
+  const [ownBalance,setOwnBalance]=useState(0);
+  const [ownRate,setOwnRate]=useState(0);
+  const [ownPayment,setOwnPayment]=useState(0);
+  const [ownExtraMonthly,setOwnExtraMonthly]=useState(0);
+  const [ownPayments,setOwnPayments]=useState([]);
 
   useEffect(()=>{
     if(!supabase) return;
@@ -174,6 +161,9 @@ function App(){
         recordingFee:Number(row.recording_government_fee),prepaidInterest:Number(row.prepaid_interest),
         initialEscrow:Number(row.initial_escrow),monthly:Number(row.estimated_monthly_cost),
         cashToClose:Number(row.estimated_cash_to_close),interest:Number(row.estimated_total_interest),
+        ownBalance:Number(row.owner_balance||0),ownRate:Number(row.owner_rate||0),
+        ownPayment:Number(row.owner_payment||0),ownExtraMonthly:Number(row.owner_extra_monthly||0),
+        ownPayments:Array.isArray(row.owner_payments)?row.owner_payments:[],
         cloud:true
       }));
       setSavedScenarios(cloud);
@@ -323,13 +313,6 @@ function App(){
     };
   },[price,calc,rate,years,pmiRate,totalHoaMonthly,extraCashAmount]);
 
-  const afterPurchase=useMemo(()=>{
-    if(currentBalance<=0||currentRate<=0||remainingYears<=0)return null;
-    const base=amortize({principal:currentBalance,annualRate:currentRate,years:remainingYears});
-    const accelerated=amortize({principal:currentBalance,annualRate:currentRate,years:remainingYears,extraMonthly,lumpSum});
-    return {base,accelerated};
-  },[currentBalance,currentRate,remainingYears,extraMonthly,lumpSum]);
-
   const pmiMilestone=useMemo(()=>{
     if(downPct>=20)return {base:0,extra:0,needed:0};
     const target=price*0.8;
@@ -341,6 +324,50 @@ function App(){
       needed:Math.max(0,calc.principal-target)
     };
   },[downPct,price,calc.principal,calc.base.rows,calc.extra.rows]);
+
+  const monthOptions=useMemo(()=>{
+    const out=[];
+    for(let i=0;i<36;i++){
+      const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+i);
+      const label=d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+      out.push({value:i,label:i===0?label+" (this month)":label});
+    }
+    return out;
+  },[]);
+
+  const ownLoan=useMemo(()=>{
+    if(!(ownBalance>0)||!(ownRate>0)||!(ownPayment>0))return null;
+    const firstInterest=ownBalance*ownRate/1200;
+    const scheduledPayment=ownPayment;
+    if(scheduledPayment<=firstInterest)return {tooSmall:true,firstInterest,scheduledPayment};
+    const term=monthsRemaining(ownBalance,ownRate,scheduledPayment);
+    const base=amortize({principal:ownBalance,annualRate:ownRate,months:term,payment:scheduledPayment});
+    // A logged payment counts only for the part above the normal payment.
+    const extras=ownPayments
+      .map(p=>({month:(Number(p.month)||0)+1,amount:Math.max(0,(Number(p.paid)||0)-scheduledPayment)}))
+      .filter(x=>x.amount>0);
+    const withExtra=amortize({principal:ownBalance,annualRate:ownRate,months:term,payment:scheduledPayment,extraMonthly:ownExtraMonthly,extraPayments:extras});
+    const oneOffTotal=extras.reduce((a,x)=>a+x.amount,0);
+    return {
+      scheduledPayment,firstInterest,
+      nextPrincipal:Math.max(0,scheduledPayment-firstInterest),
+      base,withExtra,
+      basePayoff:monthYearFromNow(base.months),
+      newPayoff:monthYearFromNow(withExtra.months),
+      interestSaved:Math.max(0,base.totalInterest-withExtra.totalInterest),
+      monthsSaved:Math.max(0,base.months-withExtra.months),
+      totalExtra:oneOffTotal+ownExtraMonthly*withExtra.months
+    };
+  },[ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments]);
+
+  const ownBalanceSeries=useMemo(()=>{
+    if(!ownLoan||ownLoan.tooSmall)return [];
+    const max=Math.max(ownLoan.base.rows.length,ownLoan.withExtra.rows.length);
+    const at=(rows,i)=>rows[Math.min(i,rows.length)-1]?.balance??0;
+    const out=[{year:0,scheduled:Math.round(ownBalance),withExtra:Math.round(ownBalance)}];
+    for(let i=12;i<=max;i+=12)out.push({year:i/12,scheduled:Math.round(at(ownLoan.base.rows,i)),withExtra:Math.round(at(ownLoan.withExtra.rows,i))});
+    return out;
+  },[ownLoan,ownBalance]);
 
   const payoffBase=monthYearFromNow(calc.base.months);
   const payoffExtra=monthYearFromNow(calc.extra.months);
@@ -358,6 +385,7 @@ function App(){
     const localScenario={
       id:Date.now(),name,address,price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,
       extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,
+      ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,
       monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
     };
     if(!supabase||!session?.user?.id){
@@ -382,6 +410,8 @@ function App(){
       seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,appraisal_fee:appraisalFee,
       inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
       prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,
+      owner_balance:ownBalance,owner_rate:ownRate,owner_payment:ownPayment,
+      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,
       estimated_monthly_cost:calc.totalMonthly,estimated_cash_to_close:calc.cashToClose,
       estimated_total_interest:calc.base.totalInterest
     }).select("id").single();
@@ -410,12 +440,15 @@ function App(){
       maintenance_pct_annual:maintenancePct,extra_monthly_principal:extraMonthly,
       lump_sum_principal:lumpSum,closing_cost_pct:closingPct,seller_lender_credits:sellerCredit,lender_origination_fee:lenderFee,
       appraisal_fee:appraisalFee,inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
-      prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,estimated_monthly_cost:calc.totalMonthly,
+      prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,
+      owner_balance:ownBalance,owner_rate:ownRate,owner_payment:ownPayment,
+      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,
+      estimated_monthly_cost:calc.totalMonthly,
       estimated_cash_to_close:calc.cashToClose,estimated_total_interest:calc.base.totalInterest
     };
     const {error}=await supabase.from("housing_scenarios").update(patch).eq("id",sc.id).eq("user_id",session.user.id);
     if(error){setScenarioMessage("Update failed: "+error.message);return;}
-    setSavedScenarios(prev=>prev.map(x=>x.id===sc.id?{...x,name:scenarioName||"Scenario",address:propertyAddress.trim(),price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest}:x));
+    setSavedScenarios(prev=>prev.map(x=>x.id===sc.id?{...x,name:scenarioName||"Scenario",address:propertyAddress.trim(),price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest}:x));
     setScenarioMessage("Cloud scenario updated.");
   };
 
@@ -468,6 +501,9 @@ function App(){
     if(sc.inspectionFee!==undefined)setInspectionFee(sc.inspectionFee);if(sc.titleFee!==undefined)setTitleFee(sc.titleFee);
     if(sc.recordingFee!==undefined)setRecordingFee(sc.recordingFee);if(sc.prepaidInterest!==undefined)setPrepaidInterest(sc.prepaidInterest);
     if(sc.initialEscrow!==undefined)setInitialEscrow(sc.initialEscrow);
+    setOwnBalance(sc.ownBalance||0);setOwnRate(sc.ownRate||0);setOwnPayment(sc.ownPayment||0);
+    setOwnExtraMonthly(sc.ownExtraMonthly||0);
+    setOwnPayments(Array.isArray(sc.ownPayments)?sc.ownPayments.map((x,i)=>({id:x.id??Date.now()+i,month:Number(x.month)||0,paid:Number(x.paid)||0})):[]);
   };
 
   const breakdown=[
@@ -710,15 +746,7 @@ function App(){
           extraCashAmount={extraCashAmount} setExtraCashAmount={setExtraCashAmount} money={money}
         />
       </section>
-      <section className="analysis-grid two-col">
-        <AfterPurchaseMode
-          Field={Field} currentBalance={currentBalance} setCurrentBalance={setCurrentBalance}
-          currentRate={currentRate} setCurrentRate={setCurrentRate}
-          remainingYears={remainingYears} setRemainingYears={setRemainingYears}
-          afterPurchase={afterPurchase} money={money}
-        />
-        {amortCard}
-      </section>
+      <section className="single-card">{amortCard}</section>
     </>}
 
     {tab==='sell'&&<section className="card panel sell-equity-card">
@@ -755,6 +783,14 @@ function App(){
         <p>{session?"Enter a house above, give it a name and address, then press Save new. Do the same for the next house and they will show up here side by side.":"Sign in first, then save a house with the Save new button. Saved houses appear here side by side."}</p>
       </section>}
     </>}
+
+    {tab==='owner'&&<OwnerMode
+      Field={Field} ownBalance={ownBalance} setOwnBalance={setOwnBalance}
+      ownRate={ownRate} setOwnRate={setOwnRate} ownPayment={ownPayment} setOwnPayment={setOwnPayment}
+      ownExtraMonthly={ownExtraMonthly} setOwnExtraMonthly={setOwnExtraMonthly}
+      ownPayments={ownPayments} setOwnPayments={setOwnPayments}
+      ownLoan={ownLoan} ownBalanceSeries={ownBalanceSeries} monthOptions={monthOptions}
+    />}
 
     <section className="notice"><strong>Planning estimate</strong><span>Planning estimates are editable. PMI, taxes, insurance, maintenance and closing costs vary by property, borrower and lender. Sign in to save your scenarios to your account and open them on any device.</span></section>
   </main>

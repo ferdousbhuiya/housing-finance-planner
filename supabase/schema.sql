@@ -59,7 +59,13 @@ alter table public.housing_scenarios
   add column if not exists initial_escrow              numeric not null default 0,
   add column if not exists estimated_monthly_cost      numeric not null default 0,
   add column if not exists estimated_cash_to_close     numeric not null default 0,
-  add column if not exists estimated_total_interest    numeric not null default 0;
+  add column if not exists estimated_total_interest    numeric not null default 0,
+  -- "I own it" mode: the owner's real loan and the extra payments they log
+  add column if not exists owner_balance               numeric not null default 0,
+  add column if not exists owner_rate                  numeric not null default 0,
+  add column if not exists owner_payment               numeric not null default 0,
+  add column if not exists owner_extra_monthly         numeric not null default 0,
+  add column if not exists owner_payments              jsonb   not null default '[]'::jsonb;
 
 create index if not exists housing_properties_user_idx on public.housing_properties(user_id);
 create index if not exists housing_scenarios_user_idx  on public.housing_scenarios(user_id, created_at desc);

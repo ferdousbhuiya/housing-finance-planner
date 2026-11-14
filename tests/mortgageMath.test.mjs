@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { monthlyPI, amortize, monthlyHousingCosts, cashToClose } from '../src/mortgageMath.js';
+import { monthlyPI, monthlyPIMonths, monthsRemaining, amortize, monthlyHousingCosts, cashToClose } from '../src/mortgageMath.js';
 
 test('30-year mortgage payment matches known formula result',()=>{
   const payment=monthlyPI(300000,6,30);
@@ -82,4 +82,41 @@ test('large lump sum cannot create a negative ending balance',()=>{
   const a=amortize({principal:100000,annualRate:6,years:30,lumpSum:200000});
   assert.equal(a.months,1);
   assert.equal(a.rows.at(-1).balance,0);
+});
+
+test('months remaining is derived from balance, rate and payment',()=>{
+  const n=monthsRemaining(300000,6,1798.65);
+  assert.ok(Math.abs(n-360)<=1);
+});
+
+test('months remaining is infinite when the payment cannot cover interest',()=>{
+  assert.equal(monthsRemaining(300000,6,100),Infinity);
+});
+
+test('a dated extra payment saves less the later it is made',()=>{
+  const early=amortize({principal:300000,annualRate:6,years:30,extraPayments:[{month:1,amount:1000}]});
+  const late=amortize({principal:300000,annualRate:6,years:30,extraPayments:[{month:120,amount:1000}]});
+  const base=amortize({principal:300000,annualRate:6,years:30});
+  assert.ok(base.totalInterest-early.totalInterest > base.totalInterest-late.totalInterest);
+});
+
+test('several dated extra payments stack up',()=>{
+  const base=amortize({principal:300000,annualRate:6,years:30});
+  const one=amortize({principal:300000,annualRate:6,years:30,extraPayments:[{month:12,amount:500}]});
+  const two=amortize({principal:300000,annualRate:6,years:30,extraPayments:[{month:12,amount:500},{month:24,amount:500}]});
+  assert.ok(two.totalInterest<one.totalInterest);
+  assert.ok(one.totalInterest<base.totalInterest);
+});
+
+test('an owner payment amount is used instead of deriving it from the term',()=>{
+  const a=amortize({principal:200000,annualRate:6,months:240,payment:2000});
+  assert.equal(a.scheduled,2000);
+  assert.ok(a.months<240);
+  assert.ok(a.cleared);
+});
+
+test('a payment too small to cover interest stops instead of looping forever',()=>{
+  const a=amortize({principal:300000,annualRate:6,months:360,payment:100});
+  assert.equal(a.cleared,false);
+  assert.ok(a.months<5);
 });

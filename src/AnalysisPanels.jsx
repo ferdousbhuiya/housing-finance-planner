@@ -66,11 +66,3 @@ export function ExtraCashComparison({extraCashComparison,extraCashAmount,setExtr
     <small className="panel-note">Option 1 lowers what you pay every month. Option 2 saves more interest overall but your payment stays the same. Pick Option 1 if monthly cash flow matters most.</small>
   </div>;
 }
-
-export function AfterPurchaseMode({Field,currentBalance,setCurrentBalance,currentRate,setCurrentRate,remainingYears,setRemainingYears,afterPurchase,money}){
-  return <div className="card panel compact-panel section-slate">
-    <div className="section-title"><div><span>AFTER-PURCHASE MODE</span><h2>Track an existing mortgage</h2></div></div>
-    <div className="three-fields"><Field label="Current balance" value={currentBalance} onChange={setCurrentBalance} prefix="$" step={1000}/><Field label="Current rate" value={currentRate} onChange={setCurrentRate} suffix="%" step={0.125} max={30}/><Field label="Years remaining" value={remainingYears} onChange={setRemainingYears} suffix="years" max={50}/></div>
-    {afterPurchase?<div className="mini-breakdown"><span>Current P&I <b>{money(afterPurchase.base.scheduled)}/mo</b></span><span>Interest remaining <b>{money(afterPurchase.base.totalInterest)}</b></span><span>With current extra-payment settings <b>{Math.max(0,afterPurchase.base.months-afterPurchase.accelerated.months)} months sooner</b></span><span>Interest saved <b>{money(Math.max(0,afterPurchase.base.totalInterest-afterPurchase.accelerated.totalInterest))}</b></span></div>:<div className="empty-hint">Enter balance, rate and remaining years to analyze the existing loan.</div>}
-  </div>;
-}

@@ -1,25 +1,54 @@
-export function monthlyPI(principal, annualRate, years){
-  const n=years*12, r=annualRate/100/12;
-  if(!principal||principal<=0||!years||years<=0)return 0;
+export function monthlyPIMonths(principal, annualRate, n){
+  const r=annualRate/100/12;
+  if(!principal||principal<=0||!n||n<=0)return 0;
   if(!r)return principal/n;
   return principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
 }
 
-export function amortize({principal,annualRate,years,extraMonthly=0,lumpSum=0}){
-  const scheduled=monthlyPI(principal,annualRate,years),r=annualRate/100/12;
+export function monthlyPI(principal, annualRate, years){
+  if(!years||years<=0)return 0;
+  return monthlyPIMonths(principal, annualRate, years*12);
+}
+
+// How many payments are left, worked out from the balance, the rate and the
+// payment the owner actually makes. Returns Infinity when the payment cannot
+// even cover one month of interest.
+export function monthsRemaining(balance, annualRate, payment){
+  if(!(balance>0)||!(payment>0))return 0;
+  const r=annualRate/100/12;
+  if(!r)return Math.ceil(balance/payment);
+  if(payment<=balance*r)return Infinity;
+  return Math.ceil(-Math.log(1-(r*balance)/payment)/Math.log(1+r));
+}
+
+export function amortize({principal,annualRate,years,months,payment,extraMonthly=0,lumpSum=0,extraPayments=[]}){
+  const term=Number.isFinite(months)&&months>0?months:(years||0)*12;
+  // `payment` lets an existing owner give the payment they actually make,
+  // instead of it being derived from the term.
+  const scheduled=Number.isFinite(payment)&&payment>0?payment:monthlyPIMonths(principal,annualRate,term);
+  const r=annualRate/100/12;
+  // Extra payments are keyed by the month they land in (month 1 = the next payment).
+  const dated=new Map();
+  for(const p of extraPayments||[]){
+    const m=Math.max(1,Math.round(Number(p?.month)||1));
+    const amt=Math.max(0,Number(p?.amount)||0);
+    if(amt>0)dated.set(m,(dated.get(m)||0)+amt);
+  }
   let balance=principal,month=0,totalInterest=0; const rows=[];
-  while(balance>0.01&&month<years*12+1200){
+  const cap=term+1200;
+  while(balance>0.01&&month<cap){
     month++;
     const interest=r?balance*r:0;
     const scheduledPrincipal=Math.max(0,scheduled-interest);
-    const oneTime=month===1?lumpSum:0;
+    const oneTime=(month===1?lumpSum:0)+(dated.get(month)||0);
     const principalPaid=Math.min(balance,scheduledPrincipal+extraMonthly+oneTime);
-    const payment=interest+principalPaid;
+    if(principalPaid<=0)break; // payment cannot cover the interest; stop instead of looping
+    const paid=interest+principalPaid;
     balance=Math.max(0,balance-principalPaid);
     totalInterest+=interest;
-    rows.push({month,payment,principal:principalPaid,interest,balance});
+    rows.push({month,payment:paid,principal:principalPaid,interest,balance});
   }
-  return {scheduled,totalInterest,months:month,rows};
+  return {scheduled,totalInterest,months:month,rows,cleared:balance<=0.01};
 }
 
 
