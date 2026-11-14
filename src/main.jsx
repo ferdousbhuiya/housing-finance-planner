@@ -522,11 +522,17 @@ function App(){
     if(sc.inspectionFee!==undefined)setInspectionFee(sc.inspectionFee);if(sc.titleFee!==undefined)setTitleFee(sc.titleFee);
     if(sc.recordingFee!==undefined)setRecordingFee(sc.recordingFee);if(sc.prepaidInterest!==undefined)setPrepaidInterest(sc.prepaidInterest);
     if(sc.initialEscrow!==undefined)setInitialEscrow(sc.initialEscrow);
-    setOwnBalance(sc.ownBalance||0);setOwnRate(sc.ownRate||0);setOwnPayment(sc.ownPayment||0);
-    setOwnExtraMonthly(sc.ownExtraMonthly||0);setOwnFirstPayment(sc.ownFirstPayment||thisMonth());
-    setOwnTaxAnnual(sc.ownTaxAnnual||0);setOwnInsuranceAnnual(sc.ownInsuranceAnnual||0);
-    setOwnHoaMonthly(sc.ownHoaMonthly||0);setOwnOtherMonthly(sc.ownOtherMonthly||0);
-    setOwnPayments(Array.isArray(sc.ownPayments)?sc.ownPayments.map((x,i)=>({id:x.id??Date.now()+i,month:Number(x.month)||0,paid:Number(x.paid)||0})):[]);
+    // Scenarios saved before "I own it" existed carry no loan of their own.
+    // Loading one must not wipe what is already on that tab.
+    const hasOwnerLoan=Number(sc.ownBalance)>0||Number(sc.ownPayment)>0;
+    if(hasOwnerLoan){
+      setOwnBalance(sc.ownBalance||0);setOwnRate(sc.ownRate||0);setOwnPayment(sc.ownPayment||0);
+      setOwnExtraMonthly(sc.ownExtraMonthly||0);setOwnFirstPayment(sc.ownFirstPayment||thisMonth());
+      setOwnTaxAnnual(sc.ownTaxAnnual||0);setOwnInsuranceAnnual(sc.ownInsuranceAnnual||0);
+      setOwnHoaMonthly(sc.ownHoaMonthly||0);setOwnOtherMonthly(sc.ownOtherMonthly||0);
+      setOwnPayments(Array.isArray(sc.ownPayments)?sc.ownPayments.map((x,i)=>({id:x.id??Date.now()+i,month:Number(x.month)||0,paid:Number(x.paid)||0})):[]);
+      setOwnYear(1);
+    }
   };
 
   const breakdown=[
