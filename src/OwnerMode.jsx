@@ -37,7 +37,8 @@ export default function OwnerMode({
   const totalYears=Math.max(1,Math.ceil(rows.length/12));
   const year=Math.min(Math.max(1,ownYear),totalYears);
   const slice=rows.slice((year-1)*12,year*12);
-  const perMonthOther=ready?ownLoan.escrowMonthly+ownLoan.otherMonthly:0;
+  // escrow + HOA + anything else: everything paid on top of principal and interest
+  const perMonthOther=ready?ownLoan.escrowMonthly+ownLoan.hoaMonthly+ownLoan.otherMonthly:0;
 
   const yearTotals=useMemo(()=>slice.reduce((a,r)=>({
     principal:a.principal+(r.principal-(r.extra||0)),
