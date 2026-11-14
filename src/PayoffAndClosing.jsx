@@ -1,6 +1,18 @@
 import React from 'react';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
+// Even, readable axis ticks for the balance chart.
+const yearTicks=rows=>{
+  const last=rows.length?rows[rows.length-1].year:1;
+  const step=last>20?5:last>10?2:1;
+  const out=[1];
+  for(let y=step;y<=last;y+=step) if(y>1) out.push(y);
+  if(out[out.length-1]!==last) out.push(last);
+  return out;
+};
+const balanceTop=principal=>Math.max(1000,Math.ceil(principal/4/1000)*4000);
+const balanceTicks=principal=>{const top=balanceTop(principal);return [0,top/4,top/2,top*3/4,top];};
+
 export function PayoffAndClosing({
   Field, extraMonthly, setExtraMonthly, lumpSum, setLumpSum,
   payoffBase, payoffExtra, monthsSaved, interestSaved, calc, yearly, money,
@@ -29,7 +41,7 @@ export function PayoffAndClosing({
         <div className="section-title"><div><span>BALANCE OVER TIME</span><h2>Extra principal impact</h2></div></div>
         <ResponsiveContainer width="100%" height={190}>
           <AreaChart data={yearly} margin={{top:0,right:8,left:0,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year"/><YAxis tickFormatter={v=>"$"+Math.round(v/1000)+"k"}/>
+            <CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="year" type="number" domain={[1,"dataMax"]} ticks={yearTicks(yearly)} tick={{fontSize:11}}/><YAxis domain={[0,balanceTop(calc.principal)]} ticks={balanceTicks(calc.principal)} interval={0} tick={{fontSize:11}} tickFormatter={v=>"$"+Math.round(v/1000)+"k"}/>
             <Tooltip formatter={v=>money(v)}/><Legend/>
             <Area type="monotone" dataKey="normal" name="Scheduled" stroke="#64748b" fill="#cbd5e1" fillOpacity={0.38}/>
             <Area type="monotone" dataKey="extra" name="Extra principal" stroke="#0f766e" fill="#99f6e4" fillOpacity={0.34}/>
@@ -50,7 +62,7 @@ export function PayoffAndClosing({
         <Field label="Prepaid interest" value={prepaidInterest} onChange={setPrepaidInterest} prefix="$" step={50}/>
         <Field label="Initial escrow" value={initialEscrow} onChange={setInitialEscrow} prefix="$" step={100}/>
       </div>
-      <div className="mini-breakdown closing-summary"><span>Down payment <b>{money(calc.down)}</b></span><span>Itemized closing <b>{money(calc.itemizedClosing)}</b></span><span>Fallback % estimate <b>{money(calc.closingCosts)}</b></span><span>Used in estimate <b>{money(calc.effectiveClosing)}</b></span><span>Credits <b>− {money(sellerCredit)}</b></span></div>
+      <div className="mini-breakdown closing-summary"><span>Down payment <b>{money(calc.down)}</b></span><span>Itemized closing <b>{money(calc.itemizedClosing)}</b></span><span>Fallback % estimate <b>{money(calc.closingCosts)}</b></span><span>Used in estimate <b>{money(calc.effectiveClosing)}</b></span><small className="closing-method">{calc.closingMethod==="itemized"?"Using your itemized costs. Set all items to 0 to use the % estimate instead.":"No items entered, so the % estimate is used."}</small><span>Credits <b>− {money(sellerCredit)}</b></span></div>
     </div>
   </section>;
 }

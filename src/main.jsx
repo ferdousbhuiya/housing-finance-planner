@@ -20,9 +20,27 @@ const monthYearFromNow=months=>{
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number.isFinite(n)?n:min));
 
 function Field({label,value,onChange,prefix,suffix,step=1,min=0,max=100000000}){
+  // Keep the typed text separately so clearing a box doesn't force a "0" in front of the next number.
+  const [text,setText]=useState(String(value));
+  const [hint,setHint]=useState("");
+  useEffect(()=>{
+    setText(t=>(t===""||t==="-"||Number(t)===value)?t:String(value));
+  },[value]);
+  const handleChange=e=>{
+    const raw=e.target.value.replace(/^(-?)0+(?=\d)/,"$1");
+    if(raw===""||raw==="-"){setText(raw);setHint("");return;}
+    const n=Number(raw);
+    if(!Number.isFinite(n)){setText(raw);return;}
+    if(n>max){setText(String(max));setHint("Max is "+max.toLocaleString("en-US"));onChange(max);return;}
+    if(n<min){setText(String(min));setHint("Min is "+min.toLocaleString("en-US"));onChange(min);return;}
+    setText(raw);setHint("");onChange(n);
+  };
+  const handleBlur=()=>{
+    if(text===""||text==="-"){const v=clamp(0,min,max);setText(String(v));onChange(v);}
+  };
   return <label className="field"><span>{label}</span><div className="input-shell">
-    {prefix&&<b>{prefix}</b>}<input type="number" value={value} step={step} min={min} max={max} onChange={e=>onChange(clamp(Number(e.target.value),min,max))}/>{suffix&&<b>{suffix}</b>}
-  </div></label>
+    {prefix&&<b>{prefix}</b>}<input type="number" inputMode="decimal" value={text} step={step} min={min} max={max} onChange={handleChange} onBlur={handleBlur}/>{suffix&&<b>{suffix}</b>}
+  </div>{hint&&<small className="field-hint">{hint}</small>}</label>
 }
 
 function Metric({icon,label,value,helper}){
@@ -152,7 +170,7 @@ function App(){
     return {
       down,principal,base,extra,tax:housing.tax,insurance:housing.insurance,flood:housing.floodWind,
       maintenance:housing.maintenance,pmi:housing.pmi,closingCosts:closing.fallbackClosing,
-      itemizedClosing:closing.itemizedClosing,effectiveClosing:closing.effectiveClosing,
+      itemizedClosing:closing.itemizedClosing,effectiveClosing:closing.effectiveClosing,closingMethod:closing.closingMethod,
       cashToClose:closing.cashToClose,totalMonthly:housing.mortgageRelated,trueMonthly:housing.trueMonthly
     };
   },[price,downPct,rate,years,effectiveTaxAnnual,insuranceAnnual,floodAnnual,windAnnual,totalHoaMonthly,pmiRate,extraMonthly,lumpSum,closingPct,sellerCredit,maintenancePct,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow]);
@@ -223,8 +241,10 @@ function App(){
   }),[calc.principal,rate]);
 
   const rateComparison=useMemo(()=>{
-    const start=Math.max(0.25,rate-1.5),out=[];
-    for(let r=start;r<=rate+1.5001;r+=0.5){
+    const out=[];
+    for(let i=-3;i<=3;i++){
+      const r=Math.round((rate+i*0.5)*1000)/1000;
+      if(r<0.25) continue;
       const a=amortize({principal:calc.principal,annualRate:r,years});
       out.push({rate:Number(r.toFixed(3)),payment:Math.round(a.scheduled),interest:Math.round(a.totalInterest)});
     }
@@ -233,7 +253,8 @@ function App(){
 
   const pointsAnalysis=useMemo(()=>{
     const pointsCost=calc.principal*(pointsPct/100);
-    const reducedRate=Math.max(0,rate-pointsRateReduction);
+    // No points paid means no rate buydown.
+    const reducedRate=pointsPct>0?Math.max(0,rate-pointsRateReduction):rate;
     const reducedPayment=monthlyPI(calc.principal,reducedRate,years);
     const monthlySavings=Math.max(0,calc.base.scheduled-reducedPayment);
     const breakEven=monthlySavings>0?Math.ceil(pointsCost/monthlySavings):0;
@@ -409,7 +430,7 @@ function App(){
     {name:'Property tax',value:Math.round(calc.tax)},
     {name:'Insurance',value:Math.round(calc.insurance)},
     {name:'Flood / wind',value:Math.round(calc.flood)},
-    {name:'HOA',value:Math.round(hoa)},
+    {name:'HOA / condo / CDD',value:Math.round(totalHoaMonthly)},
     {name:'PMI',value:Math.round(calc.pmi)}
   ];
   const sellEquityData=useMemo(()=>[3,5,7,10].map(year=>{
@@ -434,8 +455,7 @@ function App(){
   return <main>
     <header className="hero compact-hero">
       <div className="brand-row"><div className="brand-icon"><Home size={22}/></div><div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>Mortgage Decision Dashboard</h1><p>Change an assumption and see the financial effect instantly.</p></div></div>
-      <div className="hero-badge"><Home size={18}/> Mortgage Lab</div>
-    </header>
+          </header>
     <section className="account-bar card">
       <div><span className="account-label">CLOUD ACCOUNT</span><small>{session?"Account connected. Your saved properties sync through Supabase.":"Sign in to view and save your properties."}</small></div>
       <AuthPanel session={session} onSessionChange={setSession}/>
@@ -547,7 +567,7 @@ function App(){
       <ResponsiveContainer width="100%" height={190}>
         <BarChart data={incrementalDownData} margin={{top:4,right:12,left:0,bottom:0}}>
           <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-          <XAxis dataKey="down" tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
+          <XAxis dataKey="down" interval={Math.max(0,Math.ceil(incrementalDownData.length/12)-1)} tick={{fontSize:11}} tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
           <YAxis tickFormatter={v => "$"+v}/>
           <Tooltip
             labelFormatter={(v,payload) => {
@@ -640,7 +660,7 @@ function App(){
       </tbody></table></div>
     </section>
 
-    <section className="notice"><strong>Planning estimate</strong><span>Planning estimates are editable. PMI, taxes, insurance, maintenance and closing costs vary by property, borrower and lender. Saved scenarios, authentication and lender-product rules will be connected in the persistence phase.</span></section>
+    <section className="notice"><strong>Planning estimate</strong><span>Planning estimates are editable. PMI, taxes, insurance, maintenance and closing costs vary by property, borrower and lender. Sign in to save your scenarios to your account and open them on any device.</span></section>
   </main>
 }
 createRoot(document.getElementById('root')).render(<App/>);

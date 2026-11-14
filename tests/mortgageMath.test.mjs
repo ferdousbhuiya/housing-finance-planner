@@ -46,8 +46,16 @@ test('true monthly cost includes maintenance reserve',()=>{
   assert.ok(Math.abs((costs.trueMonthly-costs.mortgageRelated)-333.3333333333)<0.01);
 });
 
-test('cash to close uses larger of fallback and itemized closing costs',()=>{
+test('cash to close uses itemized costs even when smaller than the fallback estimate',()=>{
   const c=cashToClose({homePrice:400000,downPaymentPct:20,closingCostPct:3,lenderOriginationFee:1000,appraisalFee:500});
+  assert.equal(c.closingMethod,'itemized');
+  assert.equal(c.effectiveClosing,1500);
+  assert.equal(c.cashToClose,81500);
+});
+
+test('cash to close falls back to the percentage when no items are entered',()=>{
+  const c=cashToClose({homePrice:400000,downPaymentPct:20,closingCostPct:3});
+  assert.equal(c.closingMethod,'fallback');
   assert.equal(c.effectiveClosing,12000);
   assert.equal(c.cashToClose,92000);
 });

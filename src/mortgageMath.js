@@ -62,12 +62,15 @@ export function cashToClose({
   const downPayment=homePrice*(downPaymentPct/100);
   const fallbackClosing=homePrice*(closingCostPct/100);
   const itemizedClosing=lenderOriginationFee+appraisalFee+inspectionFee+titleSettlementFee+recordingGovernmentFee+prepaidInterest+initialEscrow;
-  const effectiveClosing=Math.max(fallbackClosing,itemizedClosing);
+  // Use the user's itemized costs when any are entered; the % estimate is only a fallback.
+  const closingMethod=itemizedClosing>0?"itemized":"fallback";
+  const effectiveClosing=closingMethod==="itemized"?itemizedClosing:fallbackClosing;
   return {
     downPayment,
     fallbackClosing,
     itemizedClosing,
     effectiveClosing,
+    closingMethod,
     cashToClose:Math.max(0,downPayment+effectiveClosing-sellerLenderCredits)
   };
 }

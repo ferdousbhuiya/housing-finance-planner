@@ -331,3 +331,6 @@ th,td{padding:5px 8px}
 .extra-cash-control select{width:100%;padding:7px 8px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#0f172a;font-weight:700}
 .extra-cash-control input[type="range"]{width:100%;accent-color:#d97706;margin-bottom:7px}
 @media(max-width:600px){.extra-cash-control{grid-template-columns:1fr}}
+.field-hint{display:block;margin-top:3px;font-size:.7rem;font-weight:600;color:#b45309}
+.closing-method{grid-column:1/-1;display:block;font-size:.72rem;color:#64748b}
+.panel-note{display:block;margin-top:8px;font-size:.74rem;color:#64748b;line-height:1.35}

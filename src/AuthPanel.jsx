@@ -53,7 +53,7 @@ export default function AuthPanel({ session, onSessionChange }) {
     </div>
     {mode!=="password"&&<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" autoComplete="email"/>}
     {mode!=="forgot"&&<input type="password" required minLength="6" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="password"?"New password":"Password"} autoComplete={mode==="signin"?"current-password":"new-password"}/>}
-    <button type="submit" disabled={busy}>{busy?"Please wait...":mode==="signup"?"Create account":mode==="forgot"?"Send reset link":mode==="password"?"Update password":"Sign in"}</button>
+    <button type="submit" disabled={busy}>{busy?"Please wait...":mode==="signup"?"Create account":mode==="forgot"?"Send reset link":mode==="password"?"Update password":"Log in"}</button>
     {!recovery&&mode!=="forgot"&&<button type="button" className="auth-link" onClick={()=>{setMode("forgot");setMessage("")}}>Forgot password?</button>}
     {!recovery&&mode==="forgot"&&<button type="button" className="auth-link" onClick={()=>{setMode("signin");setMessage("")}}>Back to sign in</button>}
     {message&&<span className="auth-message">{message}</span>}
