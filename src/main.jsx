@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
 import { monthlyPI, amortize, monthlyHousingCosts, cashToClose } from './mortgageMath.js';
 import { supabase } from './supabase.js';
 import AuthPanel from './AuthPanel.jsx';
 import { ScenarioManager, PropertyComparison } from './ScenarioPanels.jsx';
-import { PayoffAndClosing } from './PayoffAndClosing.jsx';
-import AnalysisPanels from './AnalysisPanels.jsx';
+import { PayoffAccelerator, BalanceOverTime, ClosingCosts } from './PayoffAndClosing.jsx';
+import { PrincipalVsInterest, TermComparison, RateSensitivity, PointsBreakEven, ExtraCashComparison, AfterPurchaseMode } from './AnalysisPanels.jsx';
 
 const formatter = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 const money=n=>formatter.format(Number.isFinite(n)?n:0);
@@ -19,27 +19,67 @@ const monthYearFromNow=months=>{
 };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number.isFinite(n)?n:min));
 
+// Put thousands separators into a plain number string, leaving any decimals alone.
+const groupDigits=str=>{
+  const neg=str.startsWith('-');
+  const body=neg?str.slice(1):str;
+  const [whole,...rest]=body.split('.');
+  const grouped=whole.replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return (neg?'-':'')+grouped+(rest.length?'.'+rest.join('.'):'');
+};
+
+const signedMoney=n=>Math.abs(n)<1?"same":(n>0?"+":"\u2212")+money(Math.abs(n));
+const deltaCls=n=>"delta "+(Math.abs(n)<1?"same":n>0?"up":"down");
+
+const TABS=[
+  {id:'payment',label:'Payment'},
+  {id:'closing',label:'Cash to close'},
+  {id:'payoff',label:'Pay it off faster'},
+  {id:'sell',label:'If I sell'},
+  {id:'compare',label:'Compare houses'}
+];
+
 function Field({label,value,onChange,prefix,suffix,step=1,min=0,max=100000000}){
-  // Keep the typed text separately so clearing a box doesn't force a "0" in front of the next number.
+  // Hold the typed text separately: clearing a box must not leave a "0" stuck in front,
+  // and the comma-formatted version is only shown while the box is not being typed in.
   const [text,setText]=useState(String(value));
   const [hint,setHint]=useState("");
+  const [focused,setFocused]=useState(false);
   useEffect(()=>{
     setText(t=>(t===""||t==="-"||Number(t)===value)?t:String(value));
   },[value]);
-  const handleChange=e=>{
-    const raw=e.target.value.replace(/^(-?)0+(?=\d)/,"$1");
+  const commit=raw=>{
     if(raw===""||raw==="-"){setText(raw);setHint("");return;}
     const n=Number(raw);
-    if(!Number.isFinite(n)){setText(raw);return;}
-    if(n>max){setText(String(max));setHint("Max is "+max.toLocaleString("en-US"));onChange(max);return;}
-    if(n<min){setText(String(min));setHint("Min is "+min.toLocaleString("en-US"));onChange(min);return;}
+    if(!Number.isFinite(n))return;
+    if(n>max){setText(String(max));setHint("Max is "+groupDigits(String(max)));onChange(max);return;}
+    if(n<min){setText(String(min));setHint("Min is "+groupDigits(String(min)));onChange(min);return;}
     setText(raw);setHint("");onChange(n);
   };
+  const handleChange=e=>{
+    const raw=e.target.value.replace(/,/g,"").replace(/^(-?)0+(?=\d)/,"$1");
+    if(raw!==""&&raw!=="-"&&!/^-?\d*\.?\d*$/.test(raw))return;
+    commit(raw);
+  };
+  const handleKeyDown=e=>{
+    if(e.key!=="ArrowUp"&&e.key!=="ArrowDown")return;
+    e.preventDefault();
+    const base=Number(text===""||text==="-"?0:text);
+    if(!Number.isFinite(base))return;
+    const next=Math.round((base+(e.key==="ArrowUp"?step:-step))*1000)/1000;
+    commit(String(clamp(next,min,max)));
+  };
   const handleBlur=()=>{
+    setFocused(false);
     if(text===""||text==="-"){const v=clamp(0,min,max);setText(String(v));onChange(v);}
   };
+  const shown=focused||text===""||text==="-"?text:groupDigits(text);
   return <label className="field"><span>{label}</span><div className="input-shell">
-    {prefix&&<b>{prefix}</b>}<input type="number" inputMode="decimal" value={text} step={step} min={min} max={max} onChange={handleChange} onBlur={handleBlur}/>{suffix&&<b>{suffix}</b>}
+    {prefix&&<b>{prefix}</b>}
+    <input type="text" inputMode="decimal" autoComplete="off" value={shown}
+      onChange={handleChange} onKeyDown={handleKeyDown}
+      onFocus={()=>setFocused(true)} onBlur={handleBlur}/>
+    {suffix&&<b>{suffix}</b>}
   </div>{hint&&<small className="field-hint">{hint}</small>}</label>
 }
 
@@ -91,6 +131,7 @@ function App(){
   const [scenarioMessage,setScenarioMessage]=useState("");
   const [activeScenarioId,setActiveScenarioId]=useState(null);
   const [compareIds,setCompareIds]=useState([]);
+  const [tab,setTab]=useState('payment');
 
   useEffect(()=>{
     if(!supabase) return;
@@ -268,11 +309,15 @@ function App(){
     const pct=price?newDown/price*100:0;
     const pmi=pct<20?loan*(pmiRate/100)/12:0;
     const downPayment=monthlyPI(loan,rate,years)+calc.tax+calc.insurance+calc.flood+totalHoaMonthly+pmi;
+    // Both options are measured the same way so they can actually be compared.
+    const smallerLoan=amortize({principal:loan,annualRate:rate,years});
     const afterPurchase=amortize({principal:calc.principal,annualRate:rate,years,lumpSum:cash});
     return {
       cash,
       downMonthly:downPayment,
       downMonthlySavings:Math.max(0,calc.totalMonthly-downPayment),
+      downInterestSavings:Math.max(0,calc.base.totalInterest-smallerLoan.totalInterest),
+      downMonthsSaved:Math.max(0,calc.base.months-smallerLoan.months),
       afterInterestSavings:Math.max(0,calc.base.totalInterest-afterPurchase.totalInterest),
       afterMonthsSaved:Math.max(0,calc.base.months-afterPurchase.months)
     };
@@ -452,14 +497,83 @@ function App(){
   const monthsSaved=Math.max(0,calc.base.months-calc.extra.months);
   const interestSaved=Math.max(0,calc.base.totalInterest-calc.extra.totalInterest);
 
+  const loadedScenario=activeScenarioId?savedScenarios.find(x=>x.id===activeScenarioId):null;
+  const deltas=loadedScenario?{
+    monthly:calc.totalMonthly-(loadedScenario.monthly||0),
+    cash:calc.cashToClose-(loadedScenario.cashToClose||0),
+    interest:calc.base.totalInterest-(loadedScenario.interest||0)
+  }:null;
+
+  const inputsPanel=<div className="card panel section-inputs">
+    <div className="section-title"><div><span>PURCHASE ASSUMPTIONS</span><h2>Build your scenario</h2></div></div>
+    <div className="form-grid">
+      <Field label="Home price" value={price} onChange={setPrice} prefix="$" step={5000}/>
+      <Field label="Down payment" value={downPct} onChange={setDownPct} suffix="%" max={100}/>
+      <Field label="Interest rate" value={rate} onChange={setRate} suffix="%" step={0.125} max={30}/>
+      <Field label="Loan term" value={years} onChange={setYears} suffix="years" step={5} min={1} max={50}/>
+      <Field label="Property tax / year" value={taxAnnual} onChange={setTaxAnnual} prefix="$" step={100}/>
+      <Field label="Insurance / year" value={insuranceAnnual} onChange={setInsuranceAnnual} prefix="$" step={100}/>
+      <Field label="HOA / month" value={hoa} onChange={setHoa} prefix="$" step={10}/>
+      <Field label="Condo fee / month" value={condoFee} onChange={setCondoFee} prefix="$" step={10}/>
+      <Field label="CDD / year" value={cddAnnual} onChange={setCddAnnual} prefix="$" step={100}/>
+      <Field label="Special assessment / year" value={specialAssessmentAnnual} onChange={setSpecialAssessmentAnnual} prefix="$" step={100}/>
+      <label className="field"><span>Florida homestead estimate</span><div className="input-shell"><select value={homestead?"yes":"no"} onChange={e=>setHomestead(e.target.value==="yes")}><option value="no">Use entered property tax</option><option value="yes">Estimate homestead tax</option></select></div></label>
+      {homestead&&<><Field label="School millage" value={schoolMillage} onChange={setSchoolMillage} suffix="mills" step={0.1} max={50}/><Field label="Non-school millage" value={nonSchoolMillage} onChange={setNonSchoolMillage} suffix="mills" step={0.1} max={50}/></>}
+      {homestead&&<div className="pmi-status clear"><div><strong>Florida homestead planning estimate</strong><span>2026 exemption assumptions: $25,000 school; $51,411 non-school. Enter local millage from the property tax/TRIM information.</span></div><b>{money(effectiveTaxAnnual)}/yr</b></div>}
+      <Field label="Flood insurance / year" value={floodAnnual} onChange={setFloodAnnual} prefix="$" step={100}/>
+      <Field label="Wind / hurricane insurance / year" value={windAnnual} onChange={setWindAnnual} prefix="$" step={100}/>
+      <Field label="Maintenance reserve / year" value={maintenancePct} onChange={setMaintenancePct} suffix="% of value" step={0.25} max={100}/>
+      <Field label="PMI rate / year" value={pmiRate} onChange={setPmiRate} suffix="%" step={0.1} max={10}/>
+      <div className={"pmi-status "+(downPct<20?"active":"clear")}>
+        <div><strong>{downPct<20?"PMI included":"No PMI estimated"}</strong><span>{downPct<20?"Because the down payment is below 20%.":"Down payment is 20% or more."}</span></div>
+        <b>{downPct<20?money(calc.pmi)+"/mo":"$0/mo"}</b>
+      </div>
+    </div>
+    <div className="slider-wrap"><div><span>Down payment explorer</span><strong>{downPct}% · {money(calc.down)}</strong></div><input className="slider" type="range" min="3" max="40" value={downPct} onChange={e=>setDownPct(Number(e.target.value))}/></div>
+    {downPct<20&&<div className="pmi-milestone"><span>Estimated PMI threshold balance: <b>{money(price*0.8)}</b></span><span>Scheduled: <b>{pmiMilestone.base?monthYearFromNow(pmiMilestone.base):"N/A"}</b></span><span>With extra payments: <b>{pmiMilestone.extra?monthYearFromNow(pmiMilestone.extra):"N/A"}</b></span></div>}
+    {validationIssues.length>0&&<div className="validation-box">{validationIssues.map((x,i)=><span key={i}>{x}</span>)}</div>}
+  </div>;
+
+  const costPanel=<div className="card panel section-cost">
+    <div className="section-title"><div><span>MONTHLY COST</span><h2>Where the payment goes</h2></div><strong>{money(calc.totalMonthly)}/mo</strong></div>
+    <ResponsiveContainer width="100%" height={230}><BarChart data={breakdown} layout="vertical" margin={{left:18,right:24}}>
+      <CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tickFormatter={v=>'$'+v}/><YAxis type="category" dataKey="name" width={126}/><Tooltip formatter={v=>money(v)}/><Bar dataKey="value" radius={[0,8,8,0]} fill="#2c7a7b"/>
+    </BarChart></ResponsiveContainer>
+    <div className="cost-strip"><span>Mortgage-related monthly cost <b>{money(calc.totalMonthly)}</b></span><span>+ maintenance reserve <b>{money(calc.maintenance)}</b></span><strong>True planning cost {money(calc.trueMonthly)}</strong></div>
+    <div className="ownership-cost-details">
+      <div><span>Property tax</span><b>{money(effectiveTaxAnnual/12)}/mo</b></div>
+      <div><span>Homeowners insurance</span><b>{money(insuranceAnnual/12)}/mo</b></div>
+      <div><span>Flood insurance</span><b>{money(floodAnnual/12)}/mo</b></div>
+      <div><span>Wind / hurricane</span><b>{money(windAnnual/12)}/mo</b></div>
+      <div><span>HOA</span><b>{money(hoa)}/mo</b></div>
+      <div><span>Condo fee</span><b>{money(condoFee)}/mo</b></div>
+      <div><span>CDD</span><b>{money(cddAnnual/12)}/mo</b></div>
+      <div><span>Special assessment</span><b>{money(specialAssessmentAnnual/12)}/mo</b></div>
+      <div className="ownership-total"><span>True ownership planning cost</span><b>{money(calc.trueMonthly)}/mo</b></div>
+    </div>
+  </div>;
+
+  const amortCard=<div className="card panel compact-panel amort-card section-amort">
+    <div className="section-title"><div><span>AMORTIZATION SNAPSHOT</span><h2>How principal takes over from interest</h2></div><small>Selected yearly checkpoints</small></div>
+    <div className="table-wrap"><table><thead><tr><th>Year</th><th>Annual principal</th><th>Annual interest</th><th>Ending balance</th></tr></thead><tbody>
+      {[1,5,10,15,20,25,years].filter((v,i,a)=>v<=years&&a.indexOf(v)===i).map(y=>{
+        const end=Math.min(y*12,calc.base.rows.length), start=Math.max(0,end-12), slice=calc.base.rows.slice(start,end);
+        const principalPaid=slice.reduce((a,r)=>a+r.principal,0), interestPaid=slice.reduce((a,r)=>a+r.interest,0), balance=calc.base.rows[end-1]?.balance||0;
+        return <tr key={y}><td>Year {y}</td><td>{money(principalPaid)}</td><td>{money(interestPaid)}</td><td>{money(balance)}</td></tr>
+      })}
+    </tbody></table></div>
+  </div>;
+
   return <main>
     <header className="hero compact-hero">
       <div className="brand-row"><div className="brand-icon"><Home size={22}/></div><div><div className="eyebrow">HOUSING FINANCE PLANNER</div><h1>Mortgage Decision Dashboard</h1><p>Change an assumption and see the financial effect instantly.</p></div></div>
-          </header>
+    </header>
+
     <section className="account-bar card">
       <div><span className="account-label">CLOUD ACCOUNT</span><small>{session?"Account connected. Your saved properties sync through Supabase.":"Sign in to view and save your properties."}</small></div>
       <AuthPanel session={session} onSessionChange={setSession}/>
     </section>
+
     <ScenarioManager
       scenarioName={scenarioName} setScenarioName={setScenarioName}
       propertyAddress={propertyAddress} setPropertyAddress={setPropertyAddress}
@@ -469,151 +583,145 @@ function App(){
       deleteScenario={deleteScenario} scenarioMessage={scenarioMessage} money={money}
     />
 
-    <PropertyComparison
-      savedScenarios={savedScenarios} compareIds={compareIds}
-      toggleCompare={toggleCompare} money={money}
-    />
-
     <section className="metrics">
       <Metric icon={<Landmark/>} label="Loan amount" value={money(calc.principal)} helper={downPct+'% down'}/>
       <Metric icon={<WalletCards/>} label="Monthly housing cost" value={money(calc.totalMonthly)} helper="P&I + tax + insurance + association/assessment costs + PMI"/>
-      <Metric icon={<PiggyBank/>} label="Est. cash to close" value={money(calc.cashToClose)} helper={money(calc.down)+" down + costs − credits"}/>
+      <Metric icon={<PiggyBank/>} label="Est. cash to close" value={money(calc.cashToClose)} helper={money(calc.down)+" down + costs \u2212 credits"}/>
       <Metric icon={<TrendingDown/>} label="Scheduled interest" value={money(calc.base.totalInterest)} helper={calc.base.months+' payments'}/>
     </section>
 
-    <section className="grid two">
-      <div className="card panel section-inputs">
-        <div className="section-title"><div><span>PURCHASE ASSUMPTIONS</span><h2>Build your scenario</h2></div></div>
-        <div className="form-grid">
-          <Field label="Home price" value={price} onChange={setPrice} prefix="$" step={5000}/>
-          <Field label="Down payment" value={downPct} onChange={setDownPct} suffix="%" max={100}/>
-          <Field label="Interest rate" value={rate} onChange={setRate} suffix="%" step={0.125} max={30}/>
-          <Field label="Loan term" value={years} onChange={setYears} suffix="years" step={5} min={1} max={50}/>
-          <Field label="Property tax / year" value={taxAnnual} onChange={setTaxAnnual} prefix="$" step={100}/>
-          <Field label="Insurance / year" value={insuranceAnnual} onChange={setInsuranceAnnual} prefix="$" step={100}/>
-          <Field label="HOA / month" value={hoa} onChange={setHoa} prefix="$" step={10}/>
-          <Field label="Condo fee / month" value={condoFee} onChange={setCondoFee} prefix="$" step={10}/>
-          <Field label="CDD / year" value={cddAnnual} onChange={setCddAnnual} prefix="$" step={100}/>
-          <Field label="Special assessment / year" value={specialAssessmentAnnual} onChange={setSpecialAssessmentAnnual} prefix="$" step={100}/>
-          <label className="field"><span>Florida homestead estimate</span><div className="input-shell"><select value={homestead?"yes":"no"} onChange={e=>setHomestead(e.target.value==="yes")}><option value="no">Use entered property tax</option><option value="yes">Estimate homestead tax</option></select></div></label>
-          {homestead&&<><Field label="School millage" value={schoolMillage} onChange={setSchoolMillage} suffix="mills" step={0.1} max={50}/><Field label="Non-school millage" value={nonSchoolMillage} onChange={setNonSchoolMillage} suffix="mills" step={0.1} max={50}/></>}
-          {homestead&&<div className="pmi-status clear"><div><strong>Florida homestead planning estimate</strong><span>2026 exemption assumptions: $25,000 school; $51,411 non-school. Enter local millage from the property tax/TRIM information.</span></div><b>{money(effectiveTaxAnnual)}/yr</b></div>}
-          <Field label="Flood insurance / year" value={floodAnnual} onChange={setFloodAnnual} prefix="$" step={100}/>
-          <Field label="Wind / hurricane insurance / year" value={windAnnual} onChange={setWindAnnual} prefix="$" step={100}/>
-          <Field label="Maintenance reserve / year" value={maintenancePct} onChange={setMaintenancePct} suffix="% of value" step={0.25}/>
-          <Field label="PMI rate / year" value={pmiRate} onChange={setPmiRate} suffix="%" step={0.1}/>
-          <div className={"pmi-status "+(downPct<20?"active":"clear")}>
-            <div><strong>{downPct<20?"PMI included":"No PMI estimated"}</strong><span>{downPct<20?"Because the down payment is below 20%.":"Down payment is 20% or more."}</span></div>
-            <b>{downPct<20?money(calc.pmi)+"/mo":"$0/mo"}</b>
-          </div>
-        </div>
-        <div className="slider-wrap"><div><span>Down payment explorer</span><strong>{downPct}% · {money(calc.down)}</strong></div><input className="slider" type="range" min="3" max="40" value={downPct} onChange={e=>setDownPct(Number(e.target.value))}/></div>
-        {downPct<20&&<div className="pmi-milestone"><span>Estimated PMI threshold balance: <b>{money(price*0.8)}</b></span><span>Scheduled: <b>{pmiMilestone.base?monthYearFromNow(pmiMilestone.base):"N/A"}</b></span><span>With extra payments: <b>{pmiMilestone.extra?monthYearFromNow(pmiMilestone.extra):"N/A"}</b></span></div>}
-        {validationIssues.length>0&&<div className="validation-box">{validationIssues.map((x,i)=><span key={i}>{x}</span>)}</div>}
-      </div>
-
-      <div className="card panel section-cost">
-        <div className="section-title"><div><span>MONTHLY COST</span><h2>Where the payment goes</h2></div><strong>{money(calc.totalMonthly)}/mo</strong></div>
-        <ResponsiveContainer width="100%" height={230}><BarChart data={breakdown} layout="vertical" margin={{left:18,right:24}}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tickFormatter={v=>'$'+v}/><YAxis type="category" dataKey="name" width={126}/><Tooltip formatter={v=>money(v)}/><Bar dataKey="value" radius={[0,8,8,0]} fill="#2c7a7b"/>
-        </BarChart></ResponsiveContainer>
-        <div className="cost-strip"><span>Mortgage-related monthly cost <b>{money(calc.totalMonthly)}</b></span><span>+ maintenance reserve <b>{money(calc.maintenance)}</b></span><strong>True planning cost {money(calc.trueMonthly)}</strong></div>
-        <div className="ownership-cost-details">
-          <div><span>Property tax</span><b>{money(effectiveTaxAnnual/12)}/mo</b></div>
-          <div><span>Homeowners insurance</span><b>{money(insuranceAnnual/12)}/mo</b></div>
-          <div><span>Flood insurance</span><b>{money(floodAnnual/12)}/mo</b></div>
-          <div><span>Wind / hurricane</span><b>{money(windAnnual/12)}/mo</b></div>
-          <div><span>HOA</span><b>{money(hoa)}/mo</b></div>
-          <div><span>Condo fee</span><b>{money(condoFee)}/mo</b></div>
-          <div><span>CDD</span><b>{money(cddAnnual/12)}/mo</b></div>
-          <div><span>Special assessment</span><b>{money(specialAssessmentAnnual/12)}/mo</b></div>
-          <div className="ownership-total"><span>True ownership planning cost</span><b>{money(calc.trueMonthly)}/mo</b></div>
+    <div className="sticky-bar">
+      <div className="sticky-row">
+        <nav className="tabs" role="tablist" aria-label="Sections">
+          {TABS.map(t=><button key={t.id} type="button" role="tab" aria-selected={tab===t.id} className={tab===t.id?"tab active":"tab"} onClick={()=>setTab(t.id)}>{t.label}</button>)}
+        </nav>
+        <div className="sticky-figures">
+          <div><span>Monthly</span><strong>{money(calc.totalMonthly)}</strong></div>
+          <div><span>Cash to close</span><strong>{money(calc.cashToClose)}</strong></div>
+          <div className="sticky-context">{money(price)} · {downPct}% down · {rate}% · {years} yr</div>
         </div>
       </div>
-    </section>
+      {deltas&&<div className="delta-bar">
+        <span>vs saved <b>{loadedScenario.name}</b></span>
+        <em className={deltaCls(deltas.monthly)}>Monthly {signedMoney(deltas.monthly)}</em>
+        <em className={deltaCls(deltas.cash)}>Cash to close {signedMoney(deltas.cash)}</em>
+        <em className={deltaCls(deltas.interest)}>Total interest {signedMoney(deltas.interest)}</em>
+      </div>}
+    </div>
 
-    <section className="grid two chart-grid">
-      <div className="card panel compact-panel section-blue">
-        <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>Monthly payment vs. down payment %</h2></div></div>
-        <ResponsiveContainer width="100%" height={205}>
-          <LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3"/>
-            <XAxis dataKey="pct"/>
-            <YAxis tickFormatter={v => `$${v}`}/>
-            <Tooltip formatter={v => money(v)}/>
-            <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#2563eb" strokeWidth={3} dot={{r:4}}/>
-          </LineChart>
+    {tab==='payment'&&<>
+      <section className="grid two">{inputsPanel}{costPanel}</section>
+      <section className="grid two chart-grid">
+        <div className="card panel compact-panel section-blue">
+          <div className="section-title"><div><span>DOWN PAYMENT IMPACT</span><h2>Monthly payment vs. down payment %</h2></div></div>
+          <ResponsiveContainer width="100%" height={205}>
+            <LineChart data={downData} margin={{top:5,right:16,left:4,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="pct"/>
+              <YAxis tickFormatter={v => `$${v}`}/>
+              <Tooltip formatter={v => money(v)}/>
+              <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#2563eb" strokeWidth={3} dot={{r:4}}/>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="card panel compact-panel section-purple">
+          <div className="section-title"><div><span>CASH DOWN IMPACT</span><h2>Monthly payment vs. down payment $</h2></div></div>
+          <ResponsiveContainer width="100%" height={205}>
+            <LineChart data={downDollarData} margin={{top:5,right:16,left:4,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="amount" tickFormatter={v => `$${Math.round(v/1000)}k`}/>
+              <YAxis tickFormatter={v => `$${v}`}/>
+              <Tooltip labelFormatter={v => `Down payment: ${money(v)}`} formatter={v => money(v)}/>
+              <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#7c3aed" strokeWidth={3} dot={{r:4}}/>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="card panel compact-panel incremental-card section-savings">
+        <div className="section-title">
+          <div><span>EXTRA DOWN PAYMENT VALUE</span><h2>Monthly payment reduction for each additional $5,000 down</h2></div>
+          <small>Includes the PMI change when a step crosses 20% down</small>
+        </div>
+        <ResponsiveContainer width="100%" height={190}>
+          <BarChart data={incrementalDownData} margin={{top:4,right:12,left:0,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+            <XAxis dataKey="down" interval={Math.max(0,Math.ceil(incrementalDownData.length/12)-1)} tick={{fontSize:11}} tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
+            <YAxis tickFormatter={v => "$"+v}/>
+            <Tooltip
+              content={({active,payload,label})=>{
+                if(!active||!payload?.length)return null;
+                const row=payload[0].payload;
+                return <div className="custom-tooltip">
+                  <strong>Down payment: {money(label)} ({row.downPct.toFixed(1)}%)</strong>
+                  <span>Monthly payment: <b>{money(row.monthlyPayment)}/mo</b></span>
+                  <span>Reduction from prior $5,000: <b>{money(row.savings)}/mo</b></span>
+                  {row.crossesPmi&&<em>20% reached · estimated PMI removed</em>}
+                </div>
+              }}
+            />
+            <Bar dataKey="savings" name="Monthly payment reduction" radius={[5,5,0,0]}>
+              {incrementalDownData.map((row,index)=><Cell key={index} fill={row.crossesPmi?"#e11d48":row.downPct<20?"#0f766e":"#2563eb"}/>)}
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
-      </div>
-      <div className="card panel compact-panel section-purple">
-        <div className="section-title"><div><span>CASH DOWN IMPACT</span><h2>Monthly payment vs. down payment $</h2></div></div>
-        <ResponsiveContainer width="100%" height={205}>
-          <LineChart data={downDollarData} margin={{top:5,right:16,left:4,bottom:0}}>
-            <CartesianGrid strokeDasharray="3 3"/>
-            <XAxis dataKey="amount" tickFormatter={v => `$${Math.round(v/1000)}k`}/>
-            <YAxis tickFormatter={v => `$${v}`}/>
-            <Tooltip labelFormatter={v => `Down payment: ${money(v)}`} formatter={v => money(v)}/>
-            <Line type="monotone" dataKey="payment" name="Monthly payment" stroke="#7c3aed" strokeWidth={3} dot={{r:4}}/>
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
+        <div className="threshold-legend">
+          <span><i className="dot below"></i>Below 20% down</span>
+          <span><i className="dot threshold"></i>20% PMI-removal step</span>
+          <span><i className="dot above"></i>20%+ down</span>
+        </div>
+      </section>
 
-    <section className="card panel compact-panel incremental-card section-savings">
-      <div className="section-title">
-        <div><span>EXTRA DOWN PAYMENT VALUE</span><h2>Monthly payment reduction for each additional $5,000 down</h2></div>
-        <small>Includes the PMI change when a step crosses 20% down</small>
-      </div>
-      <ResponsiveContainer width="100%" height={190}>
-        <BarChart data={incrementalDownData} margin={{top:4,right:12,left:0,bottom:0}}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-          <XAxis dataKey="down" interval={Math.max(0,Math.ceil(incrementalDownData.length/12)-1)} tick={{fontSize:11}} tickFormatter={v => "$"+Math.round(v/1000)+"k"}/>
-          <YAxis tickFormatter={v => "$"+v}/>
-          <Tooltip
-            labelFormatter={(v,payload) => {
-              const row=payload?.[0]?.payload;
-              return row ? "Down payment: "+money(v)+" ("+row.downPct.toFixed(1)+"%)" : "Down payment: "+money(v);
-            }}
-            formatter={(v,name,item) => {
-              const row=item?.payload;
-              if(name==="Monthly payment reduction") return [money(v)+"/mo","Reduction from prior $5,000 step"];
-              return [money(v)+"/mo",name];
-            }}
-            content={({active,payload,label})=>{
-              if(!active||!payload?.length)return null;
-              const row=payload[0].payload;
-              return <div className="custom-tooltip">
-                <strong>Down payment: {money(label)} ({row.downPct.toFixed(1)}%)</strong>
-                <span>Monthly payment: <b>{money(row.monthlyPayment)}/mo</b></span>
-                <span>Reduction from prior $5,000: <b>{money(row.savings)}/mo</b></span>
-                {row.crossesPmi&&<em>20% reached · estimated PMI removed</em>}
-              </div>
-            }}
-          />
-          <Bar dataKey="savings" name="Monthly payment reduction" radius={[5,5,0,0]}>
-            {incrementalDownData.map((row,index)=><Cell key={index} fill={row.crossesPmi?"#e11d48":row.downPct<20?"#0f766e":"#2563eb"}/>)}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-      <div className="threshold-legend">
-        <span><i className="dot below"></i>Below 20% down</span>
-        <span><i className="dot threshold"></i>20% PMI-removal step</span>
-        <span><i className="dot above"></i>20%+ down</span>
-      </div>
-    </section>
+      <section className="analysis-grid two-col">
+        <TermComparison termComparison={termComparison} money={money}/>
+        <RateSensitivity rateComparison={rateComparison} money={money}/>
+      </section>
+    </>}
 
-    <PayoffAndClosing
-      Field={Field} extraMonthly={extraMonthly} setExtraMonthly={setExtraMonthly}
-      lumpSum={lumpSum} setLumpSum={setLumpSum} payoffBase={payoffBase} payoffExtra={payoffExtra}
-      monthsSaved={monthsSaved} interestSaved={interestSaved} calc={calc} yearly={yearly} money={money}
-      closingPct={closingPct} setClosingPct={setClosingPct} sellerCredit={sellerCredit} setSellerCredit={setSellerCredit}
-      lenderFee={lenderFee} setLenderFee={setLenderFee} appraisalFee={appraisalFee} setAppraisalFee={setAppraisalFee}
-      inspectionFee={inspectionFee} setInspectionFee={setInspectionFee} titleFee={titleFee} setTitleFee={setTitleFee}
-      recordingFee={recordingFee} setRecordingFee={setRecordingFee} prepaidInterest={prepaidInterest} setPrepaidInterest={setPrepaidInterest}
-      initialEscrow={initialEscrow} setInitialEscrow={setInitialEscrow}
-    />
+    {tab==='closing'&&<section className="analysis-grid two-col">
+      <ClosingCosts
+        Field={Field} calc={calc} money={money}
+        closingPct={closingPct} setClosingPct={setClosingPct} sellerCredit={sellerCredit} setSellerCredit={setSellerCredit}
+        lenderFee={lenderFee} setLenderFee={setLenderFee} appraisalFee={appraisalFee} setAppraisalFee={setAppraisalFee}
+        inspectionFee={inspectionFee} setInspectionFee={setInspectionFee} titleFee={titleFee} setTitleFee={setTitleFee}
+        recordingFee={recordingFee} setRecordingFee={setRecordingFee} prepaidInterest={prepaidInterest} setPrepaidInterest={setPrepaidInterest}
+        initialEscrow={initialEscrow} setInitialEscrow={setInitialEscrow}
+      />
+      <PointsBreakEven
+        Field={Field} pointsPct={pointsPct} setPointsPct={setPointsPct}
+        pointsRateReduction={pointsRateReduction} setPointsRateReduction={setPointsRateReduction}
+        pointsAnalysis={pointsAnalysis} money={money}
+      />
+    </section>}
 
-    <section className="card panel sell-equity-card">
+    {tab==='payoff'&&<>
+      <section className="payoff-pair">
+        <PayoffAccelerator
+          Field={Field} extraMonthly={extraMonthly} setExtraMonthly={setExtraMonthly}
+          lumpSum={lumpSum} setLumpSum={setLumpSum} payoffBase={payoffBase} payoffExtra={payoffExtra}
+          monthsSaved={monthsSaved} interestSaved={interestSaved} calc={calc} money={money}
+        />
+        <BalanceOverTime yearly={yearly} calc={calc} money={money}/>
+      </section>
+      <section className="analysis-grid two-col">
+        <PrincipalVsInterest principalInterestData={principalInterestData} money={money}/>
+        <ExtraCashComparison
+          extraCashComparison={extraCashComparison}
+          extraCashAmount={extraCashAmount} setExtraCashAmount={setExtraCashAmount} money={money}
+        />
+      </section>
+      <section className="analysis-grid two-col">
+        <AfterPurchaseMode
+          Field={Field} currentBalance={currentBalance} setCurrentBalance={setCurrentBalance}
+          currentRate={currentRate} setCurrentRate={setCurrentRate}
+          remainingYears={remainingYears} setRemainingYears={setRemainingYears}
+          afterPurchase={afterPurchase} money={money}
+        />
+        {amortCard}
+      </section>
+    </>}
+
+    {tab==='sell'&&<section className="card panel sell-equity-card">
       <div className="section-title"><div><span>SELL & EQUITY OUTLOOK</span><h2>What if you sell in 3, 5, 7, or 10 years?</h2></div></div>
       <div className="sell-equity-controls">
         <Field label="Home appreciation / year" value={homeAppreciationPct} onChange={setHomeAppreciationPct} suffix="%" step={0.25} min={-20} max={30}/>
@@ -634,31 +742,19 @@ function App(){
           <div><span>Simple return on cash</span><b>{x.returnOnCash.toFixed(1)}%</b></div>
         </div>)}
       </div>
-      <small className="sell-note">Planning estimate only. “Net cash vs. purchase cash” compares estimated sale proceeds with original cash to close. It is not investment profit: monthly ownership costs, taxes, repairs, concessions, improvements, and opportunity cost are not deducted.</small>
-    </section>
+      <small className="sell-note">Planning estimate only. Property tax, insurance and HOA are held at today's amounts, so later years are likely understated. "Net cash vs. purchase cash" compares estimated sale proceeds with original cash to close. It is not investment profit: monthly ownership costs, taxes, repairs, concessions, improvements, and opportunity cost are not deducted.</small>
+    </section>}
 
-    <AnalysisPanels
-      Field={Field} principalInterestData={principalInterestData} termComparison={termComparison}
-      rateComparison={rateComparison} pointsPct={pointsPct} setPointsPct={setPointsPct}
-      pointsRateReduction={pointsRateReduction} setPointsRateReduction={setPointsRateReduction}
-      pointsAnalysis={pointsAnalysis} extraCashComparison={extraCashComparison}
-      extraCashAmount={extraCashAmount} setExtraCashAmount={setExtraCashAmount}
-      currentBalance={currentBalance} setCurrentBalance={setCurrentBalance}
-      currentRate={currentRate} setCurrentRate={setCurrentRate}
-      remainingYears={remainingYears} setRemainingYears={setRemainingYears}
-      afterPurchase={afterPurchase} money={money}
-    />
-
-    <section className="card panel compact-panel amort-card section-amort">
-      <div className="section-title"><div><span>AMORTIZATION SNAPSHOT</span><h2>How principal takes over from interest</h2></div><small>Selected yearly checkpoints</small></div>
-      <div className="table-wrap"><table><thead><tr><th>Year</th><th>Annual principal</th><th>Annual interest</th><th>Ending balance</th></tr></thead><tbody>
-        {[1,5,10,15,20,25,years].filter((v,i,a)=>v<=years&&a.indexOf(v)===i).map(y=>{
-          const end=Math.min(y*12,calc.base.rows.length), start=Math.max(0,end-12), slice=calc.base.rows.slice(start,end);
-          const principalPaid=slice.reduce((a,r)=>a+r.principal,0), interestPaid=slice.reduce((a,r)=>a+r.interest,0), balance=calc.base.rows[end-1]?.balance||0;
-          return <tr key={y}><td>Year {y}</td><td>{money(principalPaid)}</td><td>{money(interestPaid)}</td><td>{money(balance)}</td></tr>
-        })}
-      </tbody></table></div>
-    </section>
+    {tab==='compare'&&<>
+      <PropertyComparison
+        savedScenarios={savedScenarios} compareIds={compareIds}
+        toggleCompare={toggleCompare} money={money}
+      />
+      {savedScenarios.length<2&&<section className="card panel empty-tab">
+        <h2>Save at least two houses to compare them</h2>
+        <p>{session?"Enter a house above, give it a name and address, then press Save new. Do the same for the next house and they will show up here side by side.":"Sign in first, then save a house with the Save new button. Saved houses appear here side by side."}</p>
+      </section>}
+    </>}
 
     <section className="notice"><strong>Planning estimate</strong><span>Planning estimates are editable. PMI, taxes, insurance, maintenance and closing costs vary by property, borrower and lender. Sign in to save your scenarios to your account and open them on any device.</span></section>
   </main>
