@@ -386,3 +386,91 @@ th,td{padding:5px 8px}
 @media print{
   .sticky-bar,.tabs,.account-bar,.scenario-bar{display:none!important}
 }
+
+/* ============================================================
+   Colour system: make sections tell themselves apart
+   ============================================================ */
+
+/* A slightly deeper page so white cards actually separate from it */
+body{background:#e8eef6}
+main{max-width:1440px}
+.card{background:#fff;border-color:#c9d6e4;box-shadow:0 2px 10px rgba(15,35,60,.06)}
+
+/* ---- Sticky bar: a solid dark band, so it reads as a bar ---- */
+.sticky-bar{
+  background:linear-gradient(135deg,#10243e 0%,#173b63 60%,#1d5570 100%);
+  border:1px solid #0b1a2d;
+  box-shadow:0 8px 22px rgba(15,35,60,.26);
+  padding:9px 12px;
+}
+.sticky-figures span{color:#8fb3d0}
+.sticky-figures strong{color:#fff}
+.sticky-context{background:rgba(255,255,255,.12);color:#d9e8f5;border:1px solid rgba(255,255,255,.14)}
+.delta-bar{border-top-color:rgba(255,255,255,.22);color:#9fc0da}
+.delta-bar>span{color:#d9e8f5}
+.delta-bar>span b{color:#fff}
+.sticky-bar .delta.up{background:#fecdd3;color:#881337}
+.sticky-bar .delta.down{background:#a7f3d0;color:#064e3b}
+.sticky-bar .delta.same{background:rgba(255,255,255,.16);color:#d9e8f5}
+
+/* ---- Tabs: one colour each, with a dot so they differ even when inactive ---- */
+.tabs .tab{
+  display:inline-flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.09);color:#cfe2f2;
+  border:1px solid rgba(255,255,255,.14);
+}
+.tabs .tab::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.tabs .tab:hover{background:rgba(255,255,255,.2)}
+.tabs .tab.active{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+.tabs .tab.active::before{background:#fff}
+.tabs .tab:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+.tabs .tab-payment{color:#7cc0ff}
+.tabs .tab-payment.active{background:#2563eb;color:#fff}
+.tabs .tab-closing{color:#fbbf24}
+.tabs .tab-closing.active{background:#b45309;color:#fff}
+.tabs .tab-payoff{color:#5eead4}
+.tabs .tab-payoff.active{background:#0f766e;color:#fff}
+.tabs .tab-sell{color:#c4b5fd}
+.tabs .tab-sell.active{background:#7c3aed;color:#fff}
+.tabs .tab-compare{color:#fda4af}
+.tabs .tab-compare.active{background:#be123c;color:#fff}
+
+/* ---- Panels: a visible coloured edge + a matching label ---- */
+.section-inputs,.section-cost,.section-blue,.section-purple,.section-savings,
+.section-green,.section-gold,.section-slate,.section-amort,.sell-equity-card{
+  border-top-width:4px;border-top-style:solid;
+}
+.section-inputs{border-top-color:#2563eb;background:linear-gradient(180deg,#fff 0%,#eaf2ff 100%)}
+.section-inputs .section-title span{color:#1d4ed8}
+.section-cost{border-top-color:#0d9488;background:linear-gradient(180deg,#fff 0%,#e6faf5 100%)}
+.section-cost .section-title span{color:#0f766e}
+.section-blue{border-top-color:#2563eb;background:linear-gradient(180deg,#fff 0%,#eaf2ff 100%)}
+.section-blue .section-title span{color:#1d4ed8}
+.section-purple{border-top-color:#7c3aed;background:linear-gradient(180deg,#fff 0%,#f3ecff 100%)}
+.section-purple .section-title span{color:#6d28d9}
+.section-green{border-top-color:#059669;background:linear-gradient(180deg,#fff 0%,#e8f8ef 100%)}
+.section-green .section-title span{color:#047857}
+.section-gold{border-top-color:#b45309;background:linear-gradient(180deg,#fff 0%,#fff4de 100%)}
+.section-gold .section-title span{color:#b45309}
+.section-savings{border-top-color:#0f766e;background:linear-gradient(180deg,#fff 0%,#e7f7f1 100%);border-color:#b9e1d6;border-top-color:#0f766e}
+.section-savings .section-title span{color:#0f766e}
+.section-slate{border-top-color:#475569;background:linear-gradient(180deg,#fff 0%,#eef2f7 100%)}
+.section-slate .section-title span{color:#334155}
+.section-amort{border-top-color:#4f46e5;background:linear-gradient(180deg,#fff 0%,#eeeffd 100%)}
+.section-amort .section-title span{color:#4338ca}
+.sell-equity-card{border-top-color:#7c3aed;background:linear-gradient(180deg,#fff 0%,#f5f0ff 100%)}
+.sell-equity-card .section-title span{color:#6d28d9}
+
+/* ---- KPI row: a colour per figure instead of four identical teal chips ---- */
+.metrics .metric:nth-child(1) .metric-icon{background:#e5edff;color:#2563eb}
+.metrics .metric:nth-child(2) .metric-icon{background:#e0f7f1;color:#0d9488}
+.metrics .metric:nth-child(3) .metric-icon{background:#fdf0dc;color:#b45309}
+.metrics .metric:nth-child(4) .metric-icon{background:#ffe8ec;color:#be123c}
+.metrics .metric{border-top:3px solid transparent}
+.metrics .metric:nth-child(1){border-top-color:#2563eb}
+.metrics .metric:nth-child(2){border-top-color:#0d9488}
+.metrics .metric:nth-child(3){border-top-color:#b45309}
+.metrics .metric:nth-child(4){border-top-color:#be123c}
+
+@media print{body{background:#fff}}

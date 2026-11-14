@@ -593,7 +593,7 @@ function App(){
     <div className="sticky-bar">
       <div className="sticky-row">
         <nav className="tabs" role="tablist" aria-label="Sections">
-          {TABS.map(t=><button key={t.id} type="button" role="tab" aria-selected={tab===t.id} className={tab===t.id?"tab active":"tab"} onClick={()=>setTab(t.id)}>{t.label}</button>)}
+          {TABS.map(t=><button key={t.id} type="button" role="tab" aria-selected={tab===t.id} className={"tab tab-"+t.id+(tab===t.id?" active":"")} onClick={()=>setTab(t.id)}>{t.label}</button>)}
         </nav>
         <div className="sticky-figures">
           <div><span>Monthly</span><strong>{money(calc.totalMonthly)}</strong></div>
