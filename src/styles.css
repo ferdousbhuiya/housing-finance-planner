@@ -505,3 +505,7 @@ main{max-width:1440px}
   .pay-row .pay-extra{grid-column:1}
   .pay-row .scenario-delete{grid-column:2;justify-self:end}
 }
+.owner-fields{display:grid;grid-template-columns:1.1fr .75fr .95fr 1fr;gap:6px}
+.owner-fields input[type=month]{width:100%;border:0;outline:0;background:transparent;padding:9px 7px;font:inherit;font-weight:700;color:#10243e}
+@media(max-width:900px){.owner-fields{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.owner-fields{grid-template-columns:1fr}}

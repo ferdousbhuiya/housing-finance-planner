@@ -23,3 +23,16 @@ export const yearsMonths=m=>{
   const n=Math.max(0,Math.round(m));
   return Math.floor(n/12)+"y "+(n%12)+"m";
 };
+
+export const thisMonth=()=>{
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0');
+};
+
+// A month label counted forward from a "YYYY-MM" starting month.
+export const monthLabelFrom=(iso,offset)=>{
+  const [y,m]=String(iso||'').split('-').map(Number);
+  const d=(y&&m)?new Date(y,m-1,1):new Date();
+  d.setMonth(d.getMonth()+Math.max(0,Math.round(offset)));
+  return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+};

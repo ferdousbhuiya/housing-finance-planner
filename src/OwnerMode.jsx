@@ -22,6 +22,7 @@ function AmountInput({value,onChange,ariaLabel}){
 export default function OwnerMode({
   Field, ownBalance, setOwnBalance, ownRate, setOwnRate, ownPayment, setOwnPayment,
   ownExtraMonthly, setOwnExtraMonthly, ownPayments, setOwnPayments,
+  ownFirstPayment, setOwnFirstPayment,
   ownLoan, ownBalanceSeries, monthOptions
 }){
   const addPayment=()=>setOwnPayments(prev=>[...prev,{id:Date.now()+Math.random(),month:0,paid:Math.round(ownLoan?.scheduledPayment||0)}]);
@@ -32,12 +33,16 @@ export default function OwnerMode({
     <section className="analysis-grid two-col">
       <div className="card panel compact-panel section-owner">
         <div className="section-title"><div><span>MY LOAN TODAY</span><h2>Where your mortgage stands</h2></div></div>
-        <div className="three-fields">
-          <Field label="Current balance" value={ownBalance} onChange={setOwnBalance} prefix="$" step={1000}/>
+        <div className="owner-fields">
+          <Field label="Balance at that date" value={ownBalance} onChange={setOwnBalance} prefix="$" step={1000}/>
           <Field label="Interest rate" value={ownRate} onChange={setOwnRate} suffix="%" step={0.125} max={30}/>
           <Field label="Payment (P&I only)" value={ownPayment} onChange={setOwnPayment} prefix="$" step={50}/>
+          <label className="field"><span>First installment</span><div className="input-shell">
+            <input type="month" value={ownFirstPayment} aria-label="Month of the first installment"
+              onChange={e=>setOwnFirstPayment(e.target.value)}/>
+          </div></label>
         </div>
-        <small className="panel-note">Enter principal and interest only. If your lender collects tax and insurance in escrow, leave that part out — the balance is what matters here. Your balance is as of today, so extra payments you already made are inside it.</small>
+        <small className="panel-note">Enter principal and interest only — if your lender collects tax and insurance in escrow, leave that part out. The balance should be what you owe at the first installment shown, so any extra payments made before that date are already inside it.</small>
 
         {!ownLoan&&<div className="empty-hint">Fill in your balance, rate and monthly payment to see where you stand.</div>}
         {ownLoan?.tooSmall&&<div className="validation-box"><span>That payment does not cover one month of interest ({money(ownLoan.firstInterest)}). Check the amount — remember to enter principal and interest only.</span></div>}
@@ -45,7 +50,8 @@ export default function OwnerMode({
         {ownLoan&&!ownLoan.tooSmall&&<>
           <div className="mini-breakdown">
             <span>Payments left <b>{ownLoan.base.months} ({yearsMonths(ownLoan.base.months)})</b></span>
-            <span>Payoff date as scheduled <b>{ownLoan.basePayoff}</b></span>
+            <span>First installment <b>{ownLoan.firstLabel}</b></span>
+            <span>Last payment as scheduled <b>{ownLoan.basePayoff}</b></span>
             <span>Interest still to pay <b>{money(ownLoan.base.totalInterest)}</b></span>
             <span>Of your next payment, principal is <b>{money(ownLoan.nextPrincipal)}</b> and interest is <b>{money(ownLoan.firstInterest)}</b></span>
           </div>
@@ -88,7 +94,7 @@ export default function OwnerMode({
         <div><span>EXTRA PAYMENTS</span><h2>Paying more than the usual amount</h2></div>
         <small>{ownPayments.length} {ownPayments.length===1?"entry":"entries"}</small>
       </div>
-      <small className="panel-note">Put in what you actually paid that month. If your normal payment is {money(ownLoan?.scheduledPayment||0)} and you pay {money(Math.round((ownLoan?.scheduledPayment||0)+88))}, the extra {money(88)} comes straight off the balance. Only list this month and later — anything you paid before is already inside your current balance.</small>
+      <small className="panel-note">Put in what you actually paid that month. If your normal payment is {money(ownLoan?.scheduledPayment||0)} and you pay {money(Math.round((ownLoan?.scheduledPayment||0)+88))}, the extra {money(88)} comes straight off the balance. Only list the first installment month or later — anything paid before that is already inside the balance above.</small>
 
       {ownPayments.length>0&&<div className="pay-log">
         <div className="pay-row pay-head"><span>Month</span><span>Amount you paid</span><span>Extra off the balance</span><span/></div>

@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 import { Home, Landmark, PiggyBank, TrendingDown, WalletCards } from 'lucide-react';
 import './styles.css';
 import { monthlyPI, monthsRemaining, amortize, monthlyHousingCosts, cashToClose } from './mortgageMath.js';
-import { money, groupDigits, clamp, monthYearFromNow } from './format.js';
+import { money, groupDigits, clamp, monthYearFromNow, thisMonth, monthLabelFrom } from './format.js';
 import { supabase } from './supabase.js';
 import AuthPanel from './AuthPanel.jsx';
 import { ScenarioManager, PropertyComparison } from './ScenarioPanels.jsx';
@@ -72,14 +72,15 @@ function Metric({icon,label,value,helper}){
   return <div className="metric card"><div className="metric-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{helper}</small></div></div>
 }
 
+// Default scenario: a 30-year fixed purchase in Broward County, Florida.
 function App(){
-  const [price,setPrice]=useState(425000);
+  const [price,setPrice]=useState(310000);
   const [downPct,setDownPct]=useState(20);
-  const [rate,setRate]=useState(6.25);
+  const [rate,setRate]=useState(7.99);
   const [years,setYears]=useState(30);
-  const [taxAnnual,setTaxAnnual]=useState(7200);
-  const [insuranceAnnual,setInsuranceAnnual]=useState(3600);
-  const [hoa,setHoa]=useState(220);
+  const [taxAnnual,setTaxAnnual]=useState(5820);
+  const [insuranceAnnual,setInsuranceAnnual]=useState(3000);
+  const [hoa,setHoa]=useState(325);
   const [condoFee,setCondoFee]=useState(0);
   const [cddAnnual,setCddAnnual]=useState(0);
   const [specialAssessmentAnnual,setSpecialAssessmentAnnual]=useState(0);
@@ -87,25 +88,25 @@ function App(){
   const [schoolMillage,setSchoolMillage]=useState(6.5);
   const [nonSchoolMillage,setNonSchoolMillage]=useState(12);
   const [pmiRate,setPmiRate]=useState(0.6);
-  const [extraMonthly,setExtraMonthly]=useState(300);
+  const [extraMonthly,setExtraMonthly]=useState(0);
   const [lumpSum,setLumpSum]=useState(0);
   const [closingPct,setClosingPct]=useState(3);
-  const [sellerCredit,setSellerCredit]=useState(0);
+  const [sellerCredit,setSellerCredit]=useState(6617);
   const [floodAnnual,setFloodAnnual]=useState(0);
   const [windAnnual,setWindAnnual]=useState(0);
   const [maintenancePct,setMaintenancePct]=useState(1);
-  const [pointsPct,setPointsPct]=useState(0);
+  const [pointsPct,setPointsPct]=useState(0.533);
   const [pointsRateReduction,setPointsRateReduction]=useState(0.25);
   const [extraCashAmount,setExtraCashAmount]=useState(10000);
   const [homeAppreciationPct,setHomeAppreciationPct]=useState(3);
   const [sellingCostPct,setSellingCostPct]=useState(7);
-  const [lenderFee,setLenderFee]=useState(1500);
-  const [appraisalFee,setAppraisalFee]=useState(650);
-  const [inspectionFee,setInspectionFee]=useState(500);
-  const [titleFee,setTitleFee]=useState(1800);
-  const [recordingFee,setRecordingFee]=useState(350);
-  const [prepaidInterest,setPrepaidInterest]=useState(700);
-  const [initialEscrow,setInitialEscrow]=useState(2500);
+  const [lenderFee,setLenderFee]=useState(1625);
+  const [appraisalFee,setAppraisalFee]=useState(0);
+  const [inspectionFee,setInspectionFee]=useState(0);
+  const [titleFee,setTitleFee]=useState(3160);
+  const [recordingFee,setRecordingFee]=useState(1622);
+  const [prepaidInterest,setPrepaidInterest]=useState(1321);
+  const [initialEscrow,setInitialEscrow]=useState(6175);
   const [scenarioName,setScenarioName]=useState("Scenario 1");
   const [propertyAddress,setPropertyAddress]=useState("");
   const [savedScenarios,setSavedScenarios]=useState([]);
@@ -114,9 +115,10 @@ function App(){
   const [activeScenarioId,setActiveScenarioId]=useState(null);
   const [compareIds,setCompareIds]=useState([]);
   const [tab,setTab]=useState('payment');
-  const [ownBalance,setOwnBalance]=useState(0);
-  const [ownRate,setOwnRate]=useState(0);
-  const [ownPayment,setOwnPayment]=useState(0);
+  const [ownBalance,setOwnBalance]=useState(248000);
+  const [ownRate,setOwnRate]=useState(7.99);
+  const [ownPayment,setOwnPayment]=useState(1818.01);
+  const [ownFirstPayment,setOwnFirstPayment]=useState(thisMonth());
   const [ownExtraMonthly,setOwnExtraMonthly]=useState(0);
   const [ownPayments,setOwnPayments]=useState([]);
 
@@ -164,6 +166,7 @@ function App(){
         ownBalance:Number(row.owner_balance||0),ownRate:Number(row.owner_rate||0),
         ownPayment:Number(row.owner_payment||0),ownExtraMonthly:Number(row.owner_extra_monthly||0),
         ownPayments:Array.isArray(row.owner_payments)?row.owner_payments:[],
+        ownFirstPayment:row.owner_first_payment||thisMonth(),
         cloud:true
       }));
       setSavedScenarios(cloud);
@@ -328,12 +331,11 @@ function App(){
   const monthOptions=useMemo(()=>{
     const out=[];
     for(let i=0;i<36;i++){
-      const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+i);
-      const label=d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
-      out.push({value:i,label:i===0?label+" (this month)":label});
+      const label=monthLabelFrom(ownFirstPayment,i);
+      out.push({value:i,label:i===0?label+" (1st payment)":label});
     }
     return out;
-  },[]);
+  },[ownFirstPayment]);
 
   const ownLoan=useMemo(()=>{
     if(!(ownBalance>0)||!(ownRate>0)||!(ownPayment>0))return null;
@@ -349,16 +351,16 @@ function App(){
     const withExtra=amortize({principal:ownBalance,annualRate:ownRate,months:term,payment:scheduledPayment,extraMonthly:ownExtraMonthly,extraPayments:extras});
     const oneOffTotal=extras.reduce((a,x)=>a+x.amount,0);
     return {
-      scheduledPayment,firstInterest,
+      scheduledPayment,firstInterest,firstLabel:monthLabelFrom(ownFirstPayment,0),
       nextPrincipal:Math.max(0,scheduledPayment-firstInterest),
       base,withExtra,
-      basePayoff:monthYearFromNow(base.months),
-      newPayoff:monthYearFromNow(withExtra.months),
+      basePayoff:monthLabelFrom(ownFirstPayment,base.months-1),
+      newPayoff:monthLabelFrom(ownFirstPayment,withExtra.months-1),
       interestSaved:Math.max(0,base.totalInterest-withExtra.totalInterest),
       monthsSaved:Math.max(0,base.months-withExtra.months),
       totalExtra:oneOffTotal+ownExtraMonthly*withExtra.months
     };
-  },[ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments]);
+  },[ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,ownFirstPayment]);
 
   const ownBalanceSeries=useMemo(()=>{
     if(!ownLoan||ownLoan.tooSmall)return [];
@@ -385,7 +387,7 @@ function App(){
     const localScenario={
       id:Date.now(),name,address,price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,
       extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,
-      ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,
+      ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,ownFirstPayment,
       monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest
     };
     if(!supabase||!session?.user?.id){
@@ -411,7 +413,7 @@ function App(){
       inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
       prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,
       owner_balance:ownBalance,owner_rate:ownRate,owner_payment:ownPayment,
-      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,
+      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,owner_first_payment:ownFirstPayment,
       estimated_monthly_cost:calc.totalMonthly,estimated_cash_to_close:calc.cashToClose,
       estimated_total_interest:calc.base.totalInterest
     }).select("id").single();
@@ -442,13 +444,13 @@ function App(){
       appraisal_fee:appraisalFee,inspection_fee:inspectionFee,title_settlement_fee:titleFee,recording_government_fee:recordingFee,
       prepaid_interest:prepaidInterest,initial_escrow:initialEscrow,
       owner_balance:ownBalance,owner_rate:ownRate,owner_payment:ownPayment,
-      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,
+      owner_extra_monthly:ownExtraMonthly,owner_payments:ownPayments,owner_first_payment:ownFirstPayment,
       estimated_monthly_cost:calc.totalMonthly,
       estimated_cash_to_close:calc.cashToClose,estimated_total_interest:calc.base.totalInterest
     };
     const {error}=await supabase.from("housing_scenarios").update(patch).eq("id",sc.id).eq("user_id",session.user.id);
     if(error){setScenarioMessage("Update failed: "+error.message);return;}
-    setSavedScenarios(prev=>prev.map(x=>x.id===sc.id?{...x,name:scenarioName||"Scenario",address:propertyAddress.trim(),price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest}:x));
+    setSavedScenarios(prev=>prev.map(x=>x.id===sc.id?{...x,name:scenarioName||"Scenario",address:propertyAddress.trim(),price,downPct,rate,years,taxAnnual,insuranceAnnual,hoa,condoFee,cddAnnual,specialAssessmentAnnual,homestead,schoolMillage,nonSchoolMillage,pmiRate,floodAnnual,windAnnual,maintenancePct,extraMonthly,lumpSum,closingPct,sellerCredit,lenderFee,appraisalFee,inspectionFee,titleFee,recordingFee,prepaidInterest,initialEscrow,ownBalance,ownRate,ownPayment,ownExtraMonthly,ownPayments,ownFirstPayment,monthly:calc.totalMonthly,cashToClose:calc.cashToClose,interest:calc.base.totalInterest}:x));
     setScenarioMessage("Cloud scenario updated.");
   };
 
@@ -502,7 +504,7 @@ function App(){
     if(sc.recordingFee!==undefined)setRecordingFee(sc.recordingFee);if(sc.prepaidInterest!==undefined)setPrepaidInterest(sc.prepaidInterest);
     if(sc.initialEscrow!==undefined)setInitialEscrow(sc.initialEscrow);
     setOwnBalance(sc.ownBalance||0);setOwnRate(sc.ownRate||0);setOwnPayment(sc.ownPayment||0);
-    setOwnExtraMonthly(sc.ownExtraMonthly||0);
+    setOwnExtraMonthly(sc.ownExtraMonthly||0);setOwnFirstPayment(sc.ownFirstPayment||thisMonth());
     setOwnPayments(Array.isArray(sc.ownPayments)?sc.ownPayments.map((x,i)=>({id:x.id??Date.now()+i,month:Number(x.month)||0,paid:Number(x.paid)||0})):[]);
   };
 
@@ -788,6 +790,7 @@ function App(){
       Field={Field} ownBalance={ownBalance} setOwnBalance={setOwnBalance}
       ownRate={ownRate} setOwnRate={setOwnRate} ownPayment={ownPayment} setOwnPayment={setOwnPayment}
       ownExtraMonthly={ownExtraMonthly} setOwnExtraMonthly={setOwnExtraMonthly}
+      ownFirstPayment={ownFirstPayment} setOwnFirstPayment={setOwnFirstPayment}
       ownPayments={ownPayments} setOwnPayments={setOwnPayments}
       ownLoan={ownLoan} ownBalanceSeries={ownBalanceSeries} monthOptions={monthOptions}
     />}
