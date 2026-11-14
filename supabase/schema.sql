@@ -11,6 +11,7 @@ create table if not exists public.housing_properties (
   user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
   property_name text not null default 'Scenario',
   address       text not null default '',
+  notes         text,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -79,18 +80,28 @@ create trigger housing_scenarios_updated before update on public.housing_scenari
 alter table public.housing_properties enable row level security;
 alter table public.housing_scenarios  enable row level security;
 
-drop policy if exists "own properties" on public.housing_properties;
-create policy "own properties" on public.housing_properties
-  for all to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+drop policy if exists housing_properties_select_own on public.housing_properties;
+create policy housing_properties_select_own on public.housing_properties for select to authenticated
+  using ((select auth.uid()) = user_id);
+drop policy if exists housing_properties_insert_own on public.housing_properties;
+create policy housing_properties_insert_own on public.housing_properties for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+drop policy if exists housing_properties_update_own on public.housing_properties;
+create policy housing_properties_update_own on public.housing_properties for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists housing_properties_delete_own on public.housing_properties;
+create policy housing_properties_delete_own on public.housing_properties for delete to authenticated
+  using ((select auth.uid()) = user_id);
 
-drop policy if exists "own scenarios" on public.housing_scenarios;
-create policy "own scenarios" on public.housing_scenarios
-  for all to authenticated
-  using (user_id = auth.uid())
-  with check (
-    user_id = auth.uid()
-    and exists (select 1 from public.housing_properties p
-                where p.id = property_id and p.user_id = auth.uid())
-  );
+drop policy if exists housing_scenarios_select_own on public.housing_scenarios;
+create policy housing_scenarios_select_own on public.housing_scenarios for select to authenticated
+  using ((select auth.uid()) = user_id);
+drop policy if exists housing_scenarios_insert_own on public.housing_scenarios;
+create policy housing_scenarios_insert_own on public.housing_scenarios for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+drop policy if exists housing_scenarios_update_own on public.housing_scenarios;
+create policy housing_scenarios_update_own on public.housing_scenarios for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists housing_scenarios_delete_own on public.housing_scenarios;
+create policy housing_scenarios_delete_own on public.housing_scenarios for delete to authenticated
+  using ((select auth.uid()) = user_id);
