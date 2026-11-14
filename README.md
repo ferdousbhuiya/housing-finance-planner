@@ -35,7 +35,7 @@ Passwords are kept by Supabase Auth, never in this app's tables. Row level secur
 
 ## Favicon
 
-Replace `public/favicon.svg` with your own icon (keep the same name, or update the `<link rel="icon">` line in `index.html`).
+The icons in `public/` (`favicon.ico`, `icon-192.png`, `apple-touch-icon.png`) use the same logo as the other Bhuiya apps.
 
 ## Build
 
