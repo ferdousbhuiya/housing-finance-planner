@@ -509,3 +509,21 @@ main{max-width:1440px}
 .owner-fields input[type=month]{width:100%;border:0;outline:0;background:transparent;padding:9px 7px;font:inherit;font-weight:700;color:#10243e}
 @media(max-width:900px){.owner-fields{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.owner-fields{grid-template-columns:1fr}}
+.section-owner-cost,.section-owner-history{border-top:4px solid #4f46e5;background:linear-gradient(180deg,#fff 0%,#eef0fe 100%)}
+.section-owner-cost .section-title span,.section-owner-history .section-title span{color:#4338ca}
+.section-owner-cost .section-title>strong{color:#4338ca}
+.owner-cost-list{margin-top:8px}
+.year-pick{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.year-pick span{font-size:.7rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#64748b}
+.year-pick select{border:1.5px solid #b8c9dc;border-radius:9px;background:#fff;padding:6px 8px;font:inherit;font-size:.82rem;font-weight:650;color:#10243e}
+.year-pick select:focus{outline:0;border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.14)}
+.history-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.history-table th{text-align:right;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:#64748b;padding:6px 8px;border-bottom:1.5px solid #cfdae7}
+.history-table th:first-child{text-align:left}
+.history-table td{text-align:right;padding:5px 8px;border-bottom:1px solid #eef2f7;font-variant-numeric:tabular-nums}
+.history-table td:first-child{text-align:left;font-weight:650}
+.history-table tbody tr:hover{background:#f6f7ff}
+.history-table .extra-cell{color:#94a3b8}
+.history-table .extra-cell.on{color:#4338ca;font-weight:750}
+.history-table .year-total td{border-top:2px solid #c7cdfa;border-bottom:0;background:#eef0fe;font-weight:750;color:#312e81}
+@media(max-width:620px){.history-table{font-size:.74rem}.history-table th,.history-table td{padding:4px 5px}}

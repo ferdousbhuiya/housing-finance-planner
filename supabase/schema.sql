@@ -66,7 +66,11 @@ alter table public.housing_scenarios
   add column if not exists owner_payment               numeric not null default 0,
   add column if not exists owner_extra_monthly         numeric not null default 0,
   add column if not exists owner_payments              jsonb   not null default '[]'::jsonb,
-  add column if not exists owner_first_payment         text    not null default '';
+  add column if not exists owner_first_payment         text    not null default '',
+  add column if not exists owner_tax_annual            numeric not null default 0,
+  add column if not exists owner_insurance_annual      numeric not null default 0,
+  add column if not exists owner_hoa_monthly           numeric not null default 0,
+  add column if not exists owner_other_monthly         numeric not null default 0;
 
 create index if not exists housing_properties_user_idx on public.housing_properties(user_id);
 create index if not exists housing_scenarios_user_idx  on public.housing_scenarios(user_id, created_at desc);

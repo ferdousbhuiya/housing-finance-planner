@@ -46,7 +46,8 @@ export function amortize({principal,annualRate,years,months,payment,extraMonthly
     const paid=interest+principalPaid;
     balance=Math.max(0,balance-principalPaid);
     totalInterest+=interest;
-    rows.push({month,payment:paid,principal:principalPaid,interest,balance});
+    rows.push({month,payment:paid,principal:principalPaid,interest,balance,
+      extra:Math.max(0,principalPaid-scheduledPrincipal)});
   }
   return {scheduled,totalInterest,months:month,rows,cleared:balance<=0.01};
 }
