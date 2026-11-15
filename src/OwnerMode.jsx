@@ -61,7 +61,7 @@ export default function OwnerMode({
               ? "Sign in and this loan saves to your account."
               : ownerDirty
                 ? "You have changes that are not saved yet."
-                : (ownerMsg||"Saved here and kept with your account.")}
+                : (ownerMsg||"Not saved yet \u2014 press Save my loan and it will be here next time.")}
           </span>
         </div>
         <div className="owner-fields">
