@@ -527,3 +527,11 @@ main{max-width:1440px}
 .history-table .extra-cell.on{color:#4338ca;font-weight:750}
 .history-table .year-total td{border-top:2px solid #c7cdfa;border-bottom:0;background:#eef0fe;font-weight:750;color:#312e81}
 @media(max-width:620px){.history-table{font-size:.74rem}.history-table th,.history-table td{padding:4px 5px}}
+.owner-save{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 9px;padding:8px 10px;
+  background:#eef0fe;border:1px solid #c7cdfa;border-radius:11px}
+.owner-save-btn{border:0;background:#4f46e5;color:#fff;font:inherit;font-weight:750;font-size:.84rem;
+  padding:8px 15px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.owner-save-btn:hover:not(:disabled){background:#4338ca}
+.owner-save-btn:disabled{background:#c7cbe8;cursor:not-allowed}
+.owner-status{font-size:.78rem;font-weight:600;color:#4338ca}
+.owner-status.dirty{color:#b45309;font-weight:750}

@@ -15,6 +15,14 @@ import OwnerMode from './OwnerMode.jsx';
 const signedMoney=n=>Math.abs(n)<1?"same":(n>0?"+":"\u2212")+money(Math.abs(n));
 const deltaCls=n=>"delta "+(Math.abs(n)<1?"same":n>0?"up":"down");
 
+// One shape for the owner loan, used to tell a saved state from an edited one.
+const ownerSnap=o=>JSON.stringify({
+  b:Number(o.balance)||0,r:Number(o.rate)||0,p:Number(o.payment)||0,
+  f:o.first||"",e:Number(o.extra)||0,t:Number(o.tax)||0,i:Number(o.ins)||0,
+  h:Number(o.hoa)||0,o:Number(o.other)||0,
+  pay:(o.payments||[]).map(x=>({m:Number(x.month)||0,a:Number(x.paid)||0}))
+});
+
 const TABS=[
   {id:'payment',label:'Payment'},
   {id:'closing',label:'Cash to close'},
@@ -124,6 +132,8 @@ function App(){
   const [ownHoaMonthly,setOwnHoaMonthly]=useState(325);
   const [ownOtherMonthly,setOwnOtherMonthly]=useState(0);
   const [ownYear,setOwnYear]=useState(1);
+  const [ownerSavedSnap,setOwnerSavedSnap]=useState(null);
+  const [ownerMsg,setOwnerMsg]=useState("");
   const [ownExtraMonthly,setOwnExtraMonthly]=useState(0);
   const [ownPayments,setOwnPayments]=useState([]);
 
@@ -138,6 +148,8 @@ function App(){
       setActiveScenarioId(null);
       setCompareIds([]);
       setScenarioMessage("");
+      setOwnerSavedSnap(null);
+      setOwnerMsg("");
       return;
     }
     if(!supabase) return;
@@ -178,7 +190,43 @@ function App(){
       }));
       setSavedScenarios(cloud);
       setCompareIds(cloud.slice(0,Math.min(4,cloud.length)).map(x=>x.id));
-      setScenarioMessage(cloud.length?"Cloud scenarios loaded.":"No cloud scenarios saved yet.");
+      // Open the house you were last working on, instead of the blank defaults.
+      if(cloud.length){
+        loadScenario(cloud[0]);
+        setScenarioMessage('Opened your most recent house: "'+cloud[0].name+'".');
+      }else{
+        setScenarioMessage("No saved houses yet.");
+      }
+
+      // Your own mortgage is saved separately, so it comes back whatever house is open.
+      const {data:loan,error:loanError}=await supabase
+        .from("housing_owner_loan").select("*").eq("user_id",session.user.id).maybeSingle();
+      if(!active)return;
+      // 42P01 = the table is not there yet; stay quiet rather than alarm the user.
+      if(loanError){if(loanError.code!=="42P01")setOwnerMsg("Could not load your loan: "+loanError.message);return;}
+      if(loan){
+        const pays=(Array.isArray(loan.payments)?loan.payments:[]).map((x,i)=>({
+          id:x.id??Date.now()+i,month:Number(x.month)||0,paid:Number(x.paid)||0
+        }));
+        setOwnBalance(Number(loan.balance)||0);
+        setOwnRate(Number(loan.rate)||0);
+        setOwnPayment(Number(loan.payment)||0);
+        setOwnFirstPayment(loan.first_payment||thisMonth());
+        setOwnExtraMonthly(Number(loan.extra_monthly)||0);
+        setOwnTaxAnnual(Number(loan.tax_annual)||0);
+        setOwnInsuranceAnnual(Number(loan.insurance_annual)||0);
+        setOwnHoaMonthly(Number(loan.hoa_monthly)||0);
+        setOwnOtherMonthly(Number(loan.other_monthly)||0);
+        setOwnPayments(pays);
+        setOwnerSavedSnap(ownerSnap({
+          balance:loan.balance,rate:loan.rate,payment:loan.payment,first:loan.first_payment||thisMonth(),
+          extra:loan.extra_monthly,tax:loan.tax_annual,ins:loan.insurance_annual,
+          hoa:loan.hoa_monthly,other:loan.other_monthly,payments:pays
+        }));
+        setOwnerMsg("Your loan was loaded from your account.");
+      }else{
+        setOwnerMsg("");
+      }
     };
     loadCloudScenarios();
     return()=>{active=false};
@@ -394,6 +442,28 @@ function App(){
     ...(years<=0?["Loan term must be greater than zero."]:[]),
     ...(sellerCredit>calc.down+calc.effectiveClosing?["Credits exceed estimated cash required."]:[])
   ];
+
+  const ownerCurrentSnap=ownerSnap({
+    balance:ownBalance,rate:ownRate,payment:ownPayment,first:ownFirstPayment,
+    extra:ownExtraMonthly,tax:ownTaxAnnual,ins:ownInsuranceAnnual,
+    hoa:ownHoaMonthly,other:ownOtherMonthly,payments:ownPayments
+  });
+  const ownerDirty=ownerSavedSnap!==null&&ownerCurrentSnap!==ownerSavedSnap;
+
+  const saveOwnerLoan=async()=>{
+    if(!supabase||!session?.user?.id){setOwnerMsg("Sign in first, then your loan saves to your account.");return;}
+    setOwnerMsg("Saving your loan...");
+    const {error}=await supabase.from("housing_owner_loan").upsert({
+      user_id:session.user.id,
+      balance:ownBalance,rate:ownRate,payment:ownPayment,first_payment:ownFirstPayment,
+      extra_monthly:ownExtraMonthly,tax_annual:ownTaxAnnual,insurance_annual:ownInsuranceAnnual,
+      hoa_monthly:ownHoaMonthly,other_monthly:ownOtherMonthly,
+      payments:(ownPayments||[]).map(x=>({month:Number(x.month)||0,paid:Number(x.paid)||0}))
+    },{onConflict:"user_id"});
+    if(error){setOwnerMsg("Could not save your loan: "+error.message);return;}
+    setOwnerSavedSnap(ownerCurrentSnap);
+    setOwnerMsg("Saved. It will be here next time you sign in.");
+  };
 
   const saveScenario=async()=>{
     const name=scenarioName||("Scenario "+(savedScenarios.length+1));
@@ -823,6 +893,8 @@ function App(){
       ownHoaMonthly={ownHoaMonthly} setOwnHoaMonthly={setOwnHoaMonthly}
       ownOtherMonthly={ownOtherMonthly} setOwnOtherMonthly={setOwnOtherMonthly}
       ownYear={ownYear} setOwnYear={setOwnYear} monthLabelFrom={monthLabelFrom}
+      saveOwnerLoan={saveOwnerLoan} ownerDirty={ownerDirty} ownerMsg={ownerMsg}
+      signedIn={Boolean(session?.user?.id)}
       ownPayments={ownPayments} setOwnPayments={setOwnPayments}
       ownLoan={ownLoan} ownBalanceSeries={ownBalanceSeries} monthOptions={monthOptions}
     />}

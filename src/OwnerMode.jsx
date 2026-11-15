@@ -26,6 +26,7 @@ export default function OwnerMode({
   ownTaxAnnual, setOwnTaxAnnual, ownInsuranceAnnual, setOwnInsuranceAnnual,
   ownHoaMonthly, setOwnHoaMonthly, ownOtherMonthly, setOwnOtherMonthly,
   ownYear, setOwnYear, monthLabelFrom,
+  saveOwnerLoan, ownerDirty, ownerMsg, signedIn,
   ownLoan, ownBalanceSeries, monthOptions
 }){
   const addPayment=()=>setOwnPayments(prev=>[...prev,{id:Date.now()+Math.random(),month:0,paid:Math.round(ownLoan?.scheduledPayment||0)}]);
@@ -51,6 +52,18 @@ export default function OwnerMode({
     <section className="analysis-grid two-col">
       <div className="card panel compact-panel section-owner">
         <div className="section-title"><div><span>MY LOAN TODAY</span><h2>Where your mortgage stands</h2></div></div>
+        <div className="owner-save">
+          <button type="button" className="owner-save-btn" onClick={saveOwnerLoan} disabled={!signedIn}>
+            {ownerDirty?"Save changes":"Save my loan"}
+          </button>
+          <span className={"owner-status"+(ownerDirty?" dirty":"")}>
+            {!signedIn
+              ? "Sign in and this loan saves to your account."
+              : ownerDirty
+                ? "You have changes that are not saved yet."
+                : (ownerMsg||"Saved here and kept with your account.")}
+          </span>
+        </div>
         <div className="owner-fields">
           <Field label="Balance at that date" value={ownBalance} onChange={setOwnBalance} prefix="$" step={1000}/>
           <Field label="Interest rate" value={ownRate} onChange={setOwnRate} suffix="%" step={0.125} max={30}/>

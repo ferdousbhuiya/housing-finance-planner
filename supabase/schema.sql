@@ -116,3 +116,32 @@ create policy housing_scenarios_update_own on public.housing_scenarios for updat
 drop policy if exists housing_scenarios_delete_own on public.housing_scenarios;
 create policy housing_scenarios_delete_own on public.housing_scenarios for delete to authenticated
   using ((select auth.uid()) = user_id);
+
+-- 5. "I own it": one saved mortgage per user, kept apart from the saved houses
+--    so it comes back whichever house you have open.
+create table if not exists public.housing_owner_loan (
+  user_id          uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  balance          numeric not null default 0,
+  rate             numeric not null default 0,
+  payment          numeric not null default 0,
+  first_payment    text    not null default '',
+  extra_monthly    numeric not null default 0,
+  tax_annual       numeric not null default 0,
+  insurance_annual numeric not null default 0,
+  hoa_monthly      numeric not null default 0,
+  other_monthly    numeric not null default 0,
+  payments         jsonb   not null default '[]'::jsonb,
+  updated_at       timestamptz not null default now()
+);
+
+alter table public.housing_owner_loan enable row level security;
+
+drop policy if exists housing_owner_loan_own on public.housing_owner_loan;
+create policy housing_owner_loan_own on public.housing_owner_loan
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop trigger if exists housing_owner_loan_updated on public.housing_owner_loan;
+create trigger housing_owner_loan_updated before update on public.housing_owner_loan
+  for each row execute function public.set_updated_at();
